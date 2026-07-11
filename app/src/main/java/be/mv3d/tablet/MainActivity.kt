@@ -13,16 +13,22 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -30,16 +36,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// ── MV3D-huisstijl: goud accent op donkere grond ──
+private val Gold = Color(0xFFC8A862)
+private val GoldDark = Color(0xFFA88A4A)
+private val Mv3dColors = darkColorScheme(
+    primary = Gold, onPrimary = Color(0xFF14100A),
+    primaryContainer = Color(0xFF2A2417), onPrimaryContainer = Gold,
+    secondary = Gold, onSecondary = Color(0xFF14100A),
+    background = Color(0xFF0B1017), onBackground = Color(0xFFE8EEF5),
+    surface = Color(0xFF161F2B), onSurface = Color(0xFFE8EEF5),
+    surfaceVariant = Color(0xFF1E2A38), onSurfaceVariant = Color(0xFFA9B7C7),
+    outline = Color(0xFF33465A),
+    error = Color(0xFFF08A8A), onError = Color(0xFF14100A),
+)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = Prefs(this)
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = Mv3dColors) {
                 val scope = rememberCoroutineScope()
                 val code by prefs.codeFlow.collectAsState(initial = "")
                 val tree by prefs.treeFlow.collectAsState(initial = "")
 
+                var screen by remember { mutableStateOf("home") } // "home" | "pair"
                 var codeField by remember(code) { mutableStateOf(code) }
                 var running by remember { mutableStateOf(SyncService.running) }
                 var status by remember { mutableStateOf(SyncService.lastStatus) }
@@ -47,15 +68,13 @@ class MainActivity : ComponentActivity() {
                 var syncStarting by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; remoteStatus = RemoteService.status; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
 
-                // auto-update: check de laatste GitHub-release bij het openen
+                // auto-update
                 var update by remember { mutableStateOf<Updater.Update?>(null) }
                 var updBusy by remember { mutableStateOf(false) }
                 var updErr by remember { mutableStateOf<String?>(null) }
                 var updDismissed by remember { mutableStateOf(false) }
-                // check bij openen + elke 60s (pikt een nieuwe release op zonder herstart)
                 LaunchedEffect(Unit) { while (true) { runCatching { withContext(Dispatchers.IO) { Updater.check() } }.getOrNull()?.let { update = it }; kotlinx.coroutines.delay(60_000) } }
-                LaunchedEffect(update?.versionCode) { if (update != null) updDismissed = false } // nieuwe versie → pop-up opnieuw tonen
-
+                LaunchedEffect(update?.versionCode) { if (update != null) updDismissed = false }
                 val doUpdate: () -> Unit = {
                     val u = update
                     if (u != null) {
@@ -77,47 +96,49 @@ class MainActivity : ComponentActivity() {
                 }
                 val askPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
                 val scan = rememberLauncherForActivityResult(ScanContract()) { result ->
-                    result.contents?.let { raw ->
-                        val c = extractCode(raw); codeField = c
-                        scope.launch { prefs.setCode(c) }
-                    }
+                    result.contents?.let { raw -> val c = extractCode(raw); codeField = c; scope.launch { prefs.setCode(c) } }
                 }
-
-                // Gekoppeld? Start de sync automatisch — de machinist hoeft niets te doen.
                 LaunchedEffect(code, tree) {
-                    if (code.isNotBlank() && tree.isNotBlank() && !SyncService.running) {
-                        requestRuntimePerms(askPerms)
-                        startSvc(SyncService::class.java)
+                    if (code.isNotBlank() && tree.isNotBlank() && !SyncService.running) { requestRuntimePerms(askPerms); startSvc(SyncService::class.java) }
+                }
+
+                val openPortal = { startActivity(Intent(this@MainActivity, WebViewActivity::class.java)) }
+
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    when (screen) {
+                        "home" -> HomeScreen(
+                            version = "build ${BuildConfig.VERSION_CODE}",
+                            coupled = code.isNotBlank() && tree.isNotBlank(),
+                            onLogin = openPortal,
+                            onPair = { screen = "pair" },
+                        )
+                        else -> PairingScreen(
+                            code = code, folderLabel = folderLabel(tree),
+                            coupled = code.isNotBlank() && tree.isNotBlank(),
+                            running = running, status = status, remoteStatus = remoteStatus,
+                            syncBusy = syncStarting, version = "build ${BuildConfig.VERSION_CODE}",
+                            onBack = { screen = "home" },
+                            onCode = { codeField = it; scope.launch { prefs.setCode(it) } },
+                            onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
+                            onOpenPortal = openPortal,
+                            onPickFolder = { pickTree.launch(null) },
+                            onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
+                            onStopSync = { syncStarting = false; stopService(Intent(this@MainActivity, SyncService::class.java)) },
+                            onStartRemote = { startSvc(RemoteService::class.java) },
+                            onStopRemote = { stopService(Intent(this@MainActivity, RemoteService::class.java)) },
+                            codeField = codeField,
+                        )
                     }
                 }
 
-                PairingScreen(
-                    code = code, folderLabel = folderLabel(tree),
-                    coupled = code.isNotBlank() && tree.isNotBlank(),
-                    running = running, status = status, remoteStatus = remoteStatus,
-                    onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
-                    onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
-                    version = "build ${BuildConfig.VERSION_CODE}",
-                    updateAvailable = update?.versionName, updateBusy = updBusy, updateError = updErr,
-                    onUpdate = doUpdate,
-                    onOpenPortal = { startActivity(Intent(this@MainActivity, WebViewActivity::class.java)) },
-                    onPickFolder = { pickTree.launch(null) },
-                    syncBusy = syncStarting,
-                    onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
-                    onStopSync = { syncStarting = false; stopService(Intent(this@MainActivity, SyncService::class.java)) },
-                    onStartRemote = { startSvc(RemoteService::class.java) },
-                    onStopRemote = { stopService(Intent(this@MainActivity, RemoteService::class.java)) },
-                    codeField = codeField,
-                )
-
-                // pop-up bij een beschikbare update
+                // update-pop-up (over beide schermen)
                 val up = update
                 if (up != null && !updDismissed) {
                     AlertDialog(
                         onDismissRequest = { updDismissed = true },
                         title = { Text("Nieuwe versie beschikbaar") },
                         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Er staat een update klaar (${up.versionName}). Nu bijwerken?"); if (updErr != null) Text(updErr!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } },
-                        confirmButton = { Button(onClick = doUpdate, enabled = !updBusy) { if (updBusy) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Spacer(Modifier.size(8.dp)) }; Text(if (updBusy) "Downloaden…" else "Bijwerken") } },
+                        confirmButton = { Button(onClick = doUpdate, enabled = !updBusy) { if (updBusy) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.size(8.dp)) }; Text(if (updBusy) "Downloaden…" else "Bijwerken") } },
                         dismissButton = { TextButton(onClick = { updDismissed = true }) { Text("Later") } },
                     )
                 }
@@ -132,13 +153,9 @@ class MainActivity : ComponentActivity() {
 
     private fun folderLabel(tree: String) = if (tree.isBlank()) "" else (Uri.parse(tree).lastPathSegment ?: tree)
 
-    /** Uit een gescande QR de koppelcode halen: uit een URL-parameter (code/connection_code) of ruw. */
     private fun extractCode(raw: String): String {
         val t = raw.trim()
-        return try {
-            val u = Uri.parse(t)
-            u.getQueryParameter("connection_code") ?: u.getQueryParameter("code") ?: t
-        } catch (_: Exception) { t }
+        return try { val u = Uri.parse(t); u.getQueryParameter("connection_code") ?: u.getQueryParameter("code") ?: t } catch (_: Exception) { t }
     }
 
     private fun requestRuntimePerms(launcher: ActivityResultLauncher<Array<String>>) {
@@ -149,7 +166,74 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Stateless scherm — previewbaar in Android Studio zonder toestel. */
+// ── Herbruikbare stukjes ──
+@Composable
+private fun Logo(size: Int = 64) {
+    Surface(Modifier.size(size.dp), color = Gold, shape = RoundedCornerShape((size / 4).dp)) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Layers, contentDescription = null, tint = Color.White, modifier = Modifier.size((size * 0.55).dp))
+        }
+    }
+}
+
+@Composable
+private fun SectionCard(icon: ImageVector, title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(icon, contentDescription = null, tint = Gold, modifier = Modifier.size(18.dp))
+                Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatusPill(ok: Boolean, busy: Boolean, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        when {
+            busy -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Gold)
+            ok -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(20.dp))
+            else -> Icon(Icons.Outlined.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+// ── Startscherm / login ──
+@Composable
+fun HomeScreen(version: String, coupled: Boolean, onLogin: () -> Unit, onPair: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Spacer(Modifier.height(24.dp))
+        Logo(72)
+        Text("3DG-Manager", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Machinebesturing · werven · machines", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(16.dp))
+
+        Button(onLogin, Modifier.fillMaxWidth().height(54.dp)) {
+            Icon(Icons.Outlined.Login, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
+            Text("Inloggen op het portaal", style = MaterialTheme.typography.titleMedium)
+        }
+        OutlinedButton(onPair, Modifier.fillMaxWidth().height(54.dp)) {
+            Icon(Icons.Outlined.SettingsRemote, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
+            Text(if (coupled) "Tablet-instellingen" else "Tablet koppelen (machinist)")
+        }
+        if (coupled) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(16.dp))
+            Text("Tablet gekoppeld", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Spacer(Modifier.weight(1f))
+        Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+// ── Koppel-/machinist-scherm in blokken ──
 @Composable
 fun PairingScreen(
     code: String, folderLabel: String, coupled: Boolean,
@@ -157,103 +241,87 @@ fun PairingScreen(
     onCode: (String) -> Unit,
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
-    onScan: () -> Unit = {},
-    onOpenPortal: () -> Unit = {},
-    syncBusy: Boolean = false,
-    version: String = "",
+    onScan: () -> Unit = {}, onOpenPortal: () -> Unit = {}, onBack: () -> Unit = {},
+    syncBusy: Boolean = false, version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
     codeField: String = code,
 ) {
-    val green = Color(0xFF2E7D32)
-    Surface(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("MV3D", style = MaterialTheme.typography.headlineSmall)
-            Text("Vul de koppelcode in en kies de map — de rest gebeurt automatisch.", style = MaterialTheme.typography.bodyMedium)
+    val green = Color(0xFF43C98A)
+    Column(
+        Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Terug", tint = MaterialTheme.colorScheme.onSurface) }
+            Logo(40)
+            Column { Text("MV3D", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Machine koppelen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
 
-            Button(onOpenPortal, Modifier.fillMaxWidth()) { Text("MV3D-portaal openen") }
-            HorizontalDivider()
-
-            if (updateAvailable != null) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Nieuwe versie beschikbaar", style = MaterialTheme.typography.titleMedium)
-                        Text(updateAvailable, style = MaterialTheme.typography.bodySmall)
-                        Button(onUpdate, Modifier.fillMaxWidth(), enabled = !updateBusy) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (updateBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                Text(if (updateBusy) "Downloaden…" else "Bijwerken")
-                            }
-                        }
-                        if (updateError != null) Text(updateError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        if (updateAvailable != null) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Nieuwe versie beschikbaar ($updateAvailable)", style = MaterialTheme.typography.titleSmall)
+                    Button(onUpdate, Modifier.fillMaxWidth(), enabled = !updateBusy) {
+                        if (updateBusy) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.size(8.dp)) }
+                        Text(if (updateBusy) "Downloaden…" else "Bijwerken")
                     }
+                    if (updateError != null) Text(updateError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
+        }
 
-            OutlinedTextField(codeField, onCode, label = { Text("Koppelcode (connection code)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedButton(onScan, Modifier.fillMaxWidth()) { Text("QR-code scannen") }
+        SectionCard(Icons.Outlined.Link, "Koppeling") {
+            OutlinedTextField(codeField, onCode, label = { Text("Koppelcode") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedButton(onScan, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("QR-code scannen") }
             Text("Wordt automatisch bewaard.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
 
-            HorizontalDivider()
-            Text("Doelmap besturingssoftware", style = MaterialTheme.typography.titleMedium)
+        SectionCard(Icons.Outlined.FolderOpen, "Doelmap besturingssoftware") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (folderLabel.isNotBlank()) Text("✓", color = green, style = MaterialTheme.typography.titleMedium)
-                Text(folderLabel.ifBlank { "— nog geen map gekozen —" }, style = MaterialTheme.typography.bodySmall)
+                if (folderLabel.isNotBlank()) Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = green, modifier = Modifier.size(18.dp))
+                Text(folderLabel.ifBlank { "— nog geen map gekozen —" }, style = MaterialTheme.typography.bodyMedium)
             }
             OutlinedButton(onPickFolder, Modifier.fillMaxWidth()) { Text(if (folderLabel.isBlank()) "Map kiezen" else "Andere map kiezen") }
+        }
 
-            HorizontalDivider()
-            // Sync-knop met duidelijke toestand: grijs+reden / zandloper / groen vinkje
-            Button(onStartSync, Modifier.fillMaxWidth(), enabled = coupled && !running && !syncBusy) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (running) Text("✓", color = green)
-                    else if (syncBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text(if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Sync starten")
-                }
-            }
+        SectionCard(Icons.Outlined.Sync, "Sync") {
+            StatusPill(ok = running, busy = syncBusy, text = if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Gestopt")
+            Text("Status: $status", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (!coupled) Text(if (code.isBlank()) "→ Vul eerst de koppelcode in." else "→ Kies eerst de doelmap.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Button(onStartSync, Modifier.fillMaxWidth(), enabled = coupled && !running && !syncBusy) {
+                if (running) { Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)) }
+                Text(if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Sync starten")
+            }
             if (running || syncBusy) OutlinedButton(onStopSync, Modifier.fillMaxWidth()) { Text("Sync stoppen") }
-            ListItem(
-                leadingContent = { if (running) Text("✓", color = green, style = MaterialTheme.typography.titleLarge) else if (syncBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) },
-                headlineContent = { Text(if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Sync gestopt") },
-                supportingContent = { Text("Status: $status") },
-            )
+        }
 
-            HorizontalDivider()
-            Text("Scherm delen (bediening op afstand)", style = MaterialTheme.typography.titleMedium)
-            Text("Wordt normaal door de baas gestart vanaf het platform. Vereist droidVNC-NG.", style = MaterialTheme.typography.bodySmall)
+        SectionCard(Icons.Outlined.ScreenShare, "Scherm delen") {
+            Text("Wordt normaal door de baas gestart vanaf het portaal. Vereist droidVNC-NG.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Remote: $remoteStatus", style = MaterialTheme.typography.bodySmall)
             Button(onStartRemote, Modifier.fillMaxWidth(), enabled = code.isNotBlank()) { Text("Scherm delen starten") }
             OutlinedButton(onStopRemote, Modifier.fillMaxWidth()) { Text("Scherm delen stoppen") }
-            ListItem(headlineContent = { Text("Remote: $remoteStatus") })
-
-            Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         }
+
+        OutlinedButton(onOpenPortal, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("MV3D-portaal openen") }
+        Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 
-@Preview(name = "Gekoppeld · sync actief", showBackground = true, widthDp = 420, heightDp = 900)
+@Preview(name = "Home", showBackground = true, widthDp = 420, heightDp = 900)
 @Composable
-private fun PreviewCoupled() {
-    MaterialTheme {
-        PairingScreen(
-            code = "KRAAN-7F3A-92", folderLabel = "Trimble / Earthworks / Designs",
-            coupled = true, running = true, status = "ok · 2 bestand(en) · 1 cmd · TRIMBLE_EARTHWORKS",
-            remoteStatus = "actief · https://calm-river-8821.trycloudflare.com",
-            onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
-        )
-    }
-}
+private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, onLogin = {}, onPair = {}) } } }
 
-@Preview(name = "Nieuw · niet gekoppeld", showBackground = true, widthDp = 420, heightDp = 900)
+@Preview(name = "Koppelen", showBackground = true, widthDp = 420, heightDp = 1200)
 @Composable
-private fun PreviewEmpty() {
-    MaterialTheme {
-        PairingScreen(
-            code = "", folderLabel = "",
-            coupled = false, running = false, status = "niet gekoppeld", remoteStatus = "uit",
-            onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
-        )
+private fun PreviewPair() {
+    MaterialTheme(colorScheme = Mv3dColors) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            PairingScreen(
+                code = "KRAAN-12", folderLabel = "Trimble / Earthworks", coupled = true,
+                running = true, status = "ok · 2 bestand(en) · TRIMBLE", remoteStatus = "uit",
+                onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+                version = "build 12",
+            )
+        }
     }
 }

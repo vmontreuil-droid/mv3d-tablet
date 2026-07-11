@@ -1,0 +1,9 @@
+LET OP: cloudflared hoort NIET meer in assets.
+
+Op Android 10+ mag een binary die vanuit assets naar de datamap gekopieerd wordt niet
+uitgevoerd worden. Daarom leveren we cloudflared als native lib:
+
+    app/src/main/jniLibs/arm64-v8a/libcloudflared.so
+
+RemoteService start die vanuit de uitvoerbare nativeLibraryDir. Zie het bestand in die map.
+Dit .txt mag weg.

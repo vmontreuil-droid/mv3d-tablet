@@ -62,32 +62,39 @@ class RemoteService : Service() {
     }
 
     private suspend fun run() {
-        startDroidVnc()
+        val pw = randomPassword() // per sessie; via droidVNC-NG (RFB) + gemeld aan MV3D voor auto-login
+        startDroidVnc(pw)
         try {
             bridge = NoVncBridge(this, WEB_PORT, VNC_PORT).also { it.startBridge() } // noVNC + ws→tcp op WEB_PORT
             val url = startCloudflared()
             tunnelUrl = url; status = "actief · $url"
             updateNotification("Scherm delen actief")
             val code = prefs.code(); val server = prefs.server()
-            if (code.isNotBlank()) Api(server, code).tunnel(url)
+            if (code.isNotBlank()) Api(server, code).tunnel(url, pw)
         } catch (e: Exception) {
             status = "fout: ${e.message}"; updateNotification(status)
         }
     }
 
-    /** droidVNC-NG starten via zijn intent-API (aparte, geïnstalleerde app). */
-    private fun startDroidVnc() {
+    /** droidVNC-NG starten via zijn intent-API (aparte, geïnstalleerde app), met per-sessie wachtwoord. */
+    private fun startDroidVnc(password: String) {
         try {
             val i = Intent(VNC_START).apply {
                 component = ComponentName(VNC_PKG, VNC_SVC)
                 putExtra(VNC_EXTRA_PORT, VNC_PORT)
-                // TODO: per-sessie VNC-wachtwoord dat MV3D meegeeft i.p.v. leeg
-                putExtra(VNC_EXTRA_PASSWORD, "")
+                putExtra(VNC_EXTRA_PASSWORD, password)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
         } catch (e: Exception) {
             status = "droidVNC-NG niet gestart (geïnstalleerd?): ${e.message}"
         }
+    }
+
+    /** RFB VNC-auth gebruikt max 8 tekens; genereer een veilig 8-teken wachtwoord. */
+    private fun randomPassword(): String {
+        val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+        val rnd = java.security.SecureRandom()
+        return (1..8).map { alphabet[rnd.nextInt(alphabet.length)] }.joinToString("")
     }
 
     private fun stopDroidVnc() {

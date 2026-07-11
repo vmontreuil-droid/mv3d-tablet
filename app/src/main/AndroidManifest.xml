@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Fase 2 (VNC): SYSTEM_ALERT_WINDOW / MediaProjection worden door droidVNC-NG afgehandeld. -->
 
     <application

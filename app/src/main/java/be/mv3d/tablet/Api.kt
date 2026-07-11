@@ -56,9 +56,10 @@ class Api(private val server: String, private val code: String) {
         http.newCall(req).execute().close()
     }
 
-    /** POST /api/machines/tunnel — meld (of wis met null) de VNC-tunnel-URL (fase 2). */
-    fun tunnel(url: String?) {
+    /** POST /api/machines/tunnel — meld (of wis met null) de VNC-tunnel-URL + per-sessie wachtwoord. */
+    fun tunnel(url: String?, password: String? = null) {
         val body = JSONObject().put("connection_code", code).put("tunnel_url", url ?: JSONObject.NULL)
+        if (password != null) body.put("vnc_password", password)
         val req = Request.Builder().url("$server/api/machines/tunnel")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().close()

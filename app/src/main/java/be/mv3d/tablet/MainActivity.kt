@@ -22,6 +22,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -49,12 +51,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 val askPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+                val scan = rememberLauncherForActivityResult(ScanContract()) { result ->
+                    result.contents?.let { raw ->
+                        val c = extractCode(raw); codeField = c
+                        scope.launch { prefs.setCode(c) }
+                    }
+                }
 
                 PairingScreen(
                     code = code, server = serverField, folderLabel = folderLabel(tree),
                     coupled = code.isNotBlank() && tree.isNotBlank(),
                     running = running, status = status, remoteStatus = remoteStatus,
                     onCode = { codeField = it }, onServer = { serverField = it },
+                    onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
                     onSave = { scope.launch { prefs.setCode(codeField); prefs.setServer(serverField) } },
                     onPickFolder = { pickTree.launch(null) },
                     onStartSync = { requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
@@ -74,6 +83,15 @@ class MainActivity : ComponentActivity() {
 
     private fun folderLabel(tree: String) = if (tree.isBlank()) "" else (Uri.parse(tree).lastPathSegment ?: tree)
 
+    /** Uit een gescande QR de koppelcode halen: uit een URL-parameter (code/connection_code) of ruw. */
+    private fun extractCode(raw: String): String {
+        val t = raw.trim()
+        return try {
+            val u = Uri.parse(t)
+            u.getQueryParameter("connection_code") ?: u.getQueryParameter("code") ?: t
+        } catch (_: Exception) { t }
+    }
+
     private fun requestRuntimePerms(launcher: ActivityResultLauncher<Array<String>>) {
         val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -90,6 +108,7 @@ fun PairingScreen(
     onCode: (String) -> Unit, onServer: (String) -> Unit, onSave: () -> Unit,
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
+    onScan: () -> Unit = {},
     codeField: String = code,
 ) {
     Surface(Modifier.fillMaxSize()) {
@@ -101,6 +120,7 @@ fun PairingScreen(
             Text("Koppel deze tablet aan een machine en houd de sync actief.", style = MaterialTheme.typography.bodyMedium)
 
             OutlinedTextField(codeField, onCode, label = { Text("Koppelcode (connection code)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedButton(onScan, Modifier.fillMaxWidth()) { Text("QR-code scannen") }
             OutlinedTextField(server, onServer, label = { Text("Server") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
             Button(onSave, Modifier.fillMaxWidth()) { Text("Koppeling opslaan") }
 

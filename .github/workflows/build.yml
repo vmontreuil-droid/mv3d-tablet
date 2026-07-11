@@ -1,0 +1,36 @@
+name: APK bouwen
+
+# Bouwt bij elke push (en handmatig) een debug-APK die je kan zij-laden op de tablet.
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle-wrapper genereren
+        run: gradle wrapper --gradle-version 8.9
+
+      - name: Debug-APK bouwen
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: APK uploaden
+        uses: actions/upload-artifact@v4
+        with:
+          name: mv3d-machine-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

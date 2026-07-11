@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
                     version = "build ${BuildConfig.VERSION_CODE}",
                     updateAvailable = update?.versionName, updateBusy = updBusy, updateError = updErr,
                     onUpdate = doUpdate,
+                    onOpenPortal = { startActivity(Intent(this@MainActivity, WebViewActivity::class.java)) },
                     onPickFolder = { pickTree.launch(null) },
                     syncBusy = syncStarting,
                     onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
@@ -157,6 +158,7 @@ fun PairingScreen(
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {},
+    onOpenPortal: () -> Unit = {},
     syncBusy: Boolean = false,
     version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
@@ -170,6 +172,9 @@ fun PairingScreen(
         ) {
             Text("MV3D", style = MaterialTheme.typography.headlineSmall)
             Text("Vul de koppelcode in en kies de map — de rest gebeurt automatisch.", style = MaterialTheme.typography.bodyMedium)
+
+            Button(onOpenPortal, Modifier.fillMaxWidth()) { Text("MV3D-portaal openen") }
+            HorizontalDivider()
 
             if (updateAvailable != null) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {

@@ -38,7 +38,7 @@ class SyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, notification("MV3D Machine actief"))
+        startForeground(1, notification("MV3D actief"))
         if (!running) { running = true; loop() }
         return START_STICKY
     }
@@ -117,7 +117,7 @@ class SyncService : Service() {
     private fun notification(text: String): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) nm.createNotificationChannel(NotificationChannel(CHANNEL, "MV3D sync", NotificationManager.IMPORTANCE_LOW))
-        return Notification.Builder(this, CHANNEL).setContentTitle("MV3D Machine").setContentText(text).setSmallIcon(android.R.drawable.stat_sys_download_done).setOngoing(true).build()
+        return Notification.Builder(this, CHANNEL).setContentTitle("MV3D").setContentText(text).setSmallIcon(android.R.drawable.stat_sys_download_done).setOngoing(true).build()
     }
 
     override fun onDestroy() { running = false; scope.coroutineContext[Job]?.cancel(); super.onDestroy() }

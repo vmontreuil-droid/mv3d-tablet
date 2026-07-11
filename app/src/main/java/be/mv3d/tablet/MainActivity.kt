@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
                     val u = update
                     if (u != null) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-                            updErr = "Zet 'installeren van onbekende apps' AAN voor MV3D Machine, en tik dan opnieuw op Bijwerken."
+                            updErr = "Zet 'installeren van onbekende apps' AAN voor MV3D, en tik dan opnieuw op Bijwerken."
                             runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
                         } else {
                             updBusy = true; updErr = null
@@ -168,7 +168,7 @@ fun PairingScreen(
             Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("MV3D Machine", style = MaterialTheme.typography.headlineSmall)
+            Text("MV3D", style = MaterialTheme.typography.headlineSmall)
             Text("Vul de koppelcode in en kies de map — de rest gebeurt automatisch.", style = MaterialTheme.typography.bodyMedium)
 
             if (updateAvailable != null) {
@@ -223,7 +223,7 @@ fun PairingScreen(
             OutlinedButton(onStopRemote, Modifier.fillMaxWidth()) { Text("Scherm delen stoppen") }
             ListItem(headlineContent = { Text("Remote: $remoteStatus") })
 
-            Text("MV3D Machine · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         }
     }
 }

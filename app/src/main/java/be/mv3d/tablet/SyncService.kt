@@ -74,6 +74,11 @@ class SyncService : Service() {
                     "move" -> { val src = findInTree(tree, c.path); if (src != null && c.newPath != null) { writeIntoTree(tree, null, c.newPath.substringAfterLast('/'), readDoc(src)); src.delete() }; results.add(c.id to null) }
                     "push" -> { if (c.downloadUrl != null) writeIntoTree(tree, null, c.fileName ?: "bestand", api.download(c.downloadUrl)); results.add(c.id to null) }
                     "pull" -> { val src = findInTree(tree, c.path); if (src != null && c.uploadUrl != null) api.upload(c.uploadUrl, readDoc(src)); results.add(c.id to null) }
+                    "screen" -> { // scherm-delen op afstand aan/uit (baas stuurt het; machinist doet niets)
+                        val i = Intent(this, RemoteService::class.java)
+                        if (c.path == "on") { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i) } else stopService(i)
+                        results.add(c.id to null)
+                    }
                     else -> results.add(c.id to "onbekend commando ${c.kind}")
                 }
             } catch (e: Exception) { results.add(c.id to (e.message ?: "fout")) }

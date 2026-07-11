@@ -58,6 +58,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Gekoppeld? Start de sync automatisch — de machinist hoeft niets te doen.
+                LaunchedEffect(code, tree) {
+                    if (code.isNotBlank() && tree.isNotBlank() && !SyncService.running) {
+                        requestRuntimePerms(askPerms)
+                        startSvc(SyncService::class.java)
+                    }
+                }
+
                 PairingScreen(
                     code = code, server = serverField, folderLabel = folderLabel(tree),
                     coupled = code.isNotBlank() && tree.isNotBlank(),

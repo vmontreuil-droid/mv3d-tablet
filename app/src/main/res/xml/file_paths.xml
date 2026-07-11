@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- gedownloade APK in de cache-map delen met de systeem-installer -->
+    <cache-path name="updates" path="." />
+    <files-path name="files" path="." />
+</paths>

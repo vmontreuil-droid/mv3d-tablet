@@ -26,7 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +48,11 @@ class MainActivity : ComponentActivity() {
                 var remoteStatus by remember { mutableStateOf(RemoteService.status) }
                 var syncStarting by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; remoteStatus = RemoteService.status; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
+
+                // auto-update: check de laatste GitHub-release bij het openen
+                var update by remember { mutableStateOf<Updater.Update?>(null) }
+                var updBusy by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { update = withContext(Dispatchers.IO) { runCatching { Updater.check() }.getOrNull() } }
 
                 val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
                     if (uri != null) {
@@ -76,6 +83,8 @@ class MainActivity : ComponentActivity() {
                     onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
                     onServer = { serverField = it; scope.launch { prefs.setServer(it) } }, // automatisch bewaren
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
+                    updateAvailable = update?.versionName, updateBusy = updBusy,
+                    onUpdate = { val u = update; if (u != null) { updBusy = true; scope.launch { withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) } }; updBusy = false } } },
                     onPickFolder = { pickTree.launch(null) },
                     syncBusy = syncStarting,
                     onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
@@ -122,6 +131,7 @@ fun PairingScreen(
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {},
     syncBusy: Boolean = false,
+    updateAvailable: String? = null, updateBusy: Boolean = false, onUpdate: () -> Unit = {},
     codeField: String = code,
 ) {
     val green = Color(0xFF2E7D32)
@@ -132,6 +142,21 @@ fun PairingScreen(
         ) {
             Text("MV3D Machine", style = MaterialTheme.typography.headlineSmall)
             Text("Vul de koppelcode in en kies de map — de rest gebeurt automatisch.", style = MaterialTheme.typography.bodyMedium)
+
+            if (updateAvailable != null) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Nieuwe versie beschikbaar", style = MaterialTheme.typography.titleMedium)
+                        Text(updateAvailable, style = MaterialTheme.typography.bodySmall)
+                        Button(onUpdate, Modifier.fillMaxWidth(), enabled = !updateBusy) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (updateBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Text(if (updateBusy) "Downloaden…" else "Bijwerken")
+                            }
+                        }
+                    }
+                }
+            }
 
             OutlinedTextField(codeField, onCode, label = { Text("Koppelcode (connection code)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onScan, Modifier.fillMaxWidth()) { Text("QR-code scannen") }

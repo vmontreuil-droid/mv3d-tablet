@@ -12,14 +12,30 @@ android {
         applicationId = "be.mv3d.tablet"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        // CI zet -PappVersionCode=<run_number> zodat elke build een hoger nummer krijgt (auto-update)
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.1"
+    }
+
+    // Eén vaste keystore voor alle builds → dezelfde signatuur → auto-update werkt.
+    signingConfigs {
+        create("shared") {
+            storeFile = file("mv3d-signing.p12")
+            storePassword = "mv3dtablet"
+            keyAlias = "mv3dkey"
+            keyPassword = "mv3dtablet"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
     compileOptions {
@@ -27,7 +43,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 
     // cloudflared wordt als native lib meegeleverd (jniLibs/arm64-v8a/libcloudflared.so) zodat het
     // op schijf in de uitvoerbare nativeLibraryDir belandt (Android 10+ verbiedt exec vanuit datamap).

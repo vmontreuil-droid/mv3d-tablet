@@ -1,10 +1,14 @@
 name: APK bouwen
 
-# Bouwt bij elke push (en handmatig) een debug-APK die je kan zij-laden op de tablet.
+# Bouwt bij elke push een debug-APK en publiceert die als GitHub Release,
+# zodat de tablet-app zichzelf kan bijwerken (Updater checkt /releases/latest).
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write   # nodig om een Release te publiceren
 
 jobs:
   build:
@@ -25,12 +29,23 @@ jobs:
       - name: Gradle-wrapper genereren
         run: gradle wrapper --gradle-version 8.9
 
-      - name: Debug-APK bouwen
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - name: Debug-APK bouwen (versionCode = run-nummer)
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace -PappVersionCode=${{ github.run_number }} -PappVersionName=0.${{ github.run_number }}
 
-      - name: APK uploaden
+      - name: APK klaarzetten
+        run: cp app/build/outputs/apk/debug/app-debug.apk mv3d-machine.apk
+
+      - name: APK uploaden als artifact
         uses: actions/upload-artifact@v4
         with:
           name: mv3d-machine-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: mv3d-machine.apk
           if-no-files-found: error
+
+      - name: Release publiceren (auto-update)
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: MV3D Machine build ${{ github.run_number }}
+          files: mv3d-machine.apk

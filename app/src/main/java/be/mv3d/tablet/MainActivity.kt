@@ -17,7 +17,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,7 +44,8 @@ class MainActivity : ComponentActivity() {
                 var running by remember { mutableStateOf(SyncService.running) }
                 var status by remember { mutableStateOf(SyncService.lastStatus) }
                 var remoteStatus by remember { mutableStateOf(RemoteService.status) }
-                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; remoteStatus = RemoteService.status; kotlinx.coroutines.delay(1000) } }
+                var syncStarting by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; remoteStatus = RemoteService.status; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
 
                 val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
                     if (uri != null) {
@@ -70,12 +73,13 @@ class MainActivity : ComponentActivity() {
                     code = code, server = serverField, folderLabel = folderLabel(tree),
                     coupled = code.isNotBlank() && tree.isNotBlank(),
                     running = running, status = status, remoteStatus = remoteStatus,
-                    onCode = { codeField = it }, onServer = { serverField = it },
+                    onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
+                    onServer = { serverField = it; scope.launch { prefs.setServer(it) } }, // automatisch bewaren
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
-                    onSave = { scope.launch { prefs.setCode(codeField); prefs.setServer(serverField) } },
                     onPickFolder = { pickTree.launch(null) },
-                    onStartSync = { requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
-                    onStopSync = { stopService(Intent(this@MainActivity, SyncService::class.java)) },
+                    syncBusy = syncStarting,
+                    onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
+                    onStopSync = { syncStarting = false; stopService(Intent(this@MainActivity, SyncService::class.java)) },
                     onStartRemote = { startSvc(RemoteService::class.java) },
                     onStopRemote = { stopService(Intent(this@MainActivity, RemoteService::class.java)) },
                     codeField = codeField,
@@ -113,38 +117,55 @@ class MainActivity : ComponentActivity() {
 fun PairingScreen(
     code: String, server: String, folderLabel: String, coupled: Boolean,
     running: Boolean, status: String, remoteStatus: String,
-    onCode: (String) -> Unit, onServer: (String) -> Unit, onSave: () -> Unit,
+    onCode: (String) -> Unit, onServer: (String) -> Unit,
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {},
+    syncBusy: Boolean = false,
     codeField: String = code,
 ) {
+    val green = Color(0xFF2E7D32)
     Surface(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("MV3D Machine", style = MaterialTheme.typography.headlineSmall)
-            Text("Koppel deze tablet aan een machine en houd de sync actief.", style = MaterialTheme.typography.bodyMedium)
+            Text("Vul de koppelcode in en kies de map — de rest gebeurt automatisch.", style = MaterialTheme.typography.bodyMedium)
 
             OutlinedTextField(codeField, onCode, label = { Text("Koppelcode (connection code)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onScan, Modifier.fillMaxWidth()) { Text("QR-code scannen") }
             OutlinedTextField(server, onServer, label = { Text("Server") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
-            Button(onSave, Modifier.fillMaxWidth()) { Text("Koppeling opslaan") }
+            Text("Wordt automatisch bewaard.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             HorizontalDivider()
             Text("Doelmap besturingssoftware", style = MaterialTheme.typography.titleMedium)
-            Text(folderLabel.ifBlank { "— nog geen map gekozen —" }, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onPickFolder, Modifier.fillMaxWidth()) { Text("Map kiezen") }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (folderLabel.isNotBlank()) Text("✓", color = green, style = MaterialTheme.typography.titleMedium)
+                Text(folderLabel.ifBlank { "— nog geen map gekozen —" }, style = MaterialTheme.typography.bodySmall)
+            }
+            OutlinedButton(onPickFolder, Modifier.fillMaxWidth()) { Text(if (folderLabel.isBlank()) "Map kiezen" else "Andere map kiezen") }
 
             HorizontalDivider()
-            Button(onStartSync, Modifier.fillMaxWidth(), enabled = coupled) { Text("Sync starten") }
-            OutlinedButton(onStopSync, Modifier.fillMaxWidth()) { Text("Sync stoppen") }
-            ListItem(headlineContent = { Text(if (running) "Sync actief" else "Sync gestopt") }, supportingContent = { Text("Status: $status") })
+            // Sync-knop met duidelijke toestand: grijs+reden / zandloper / groen vinkje
+            Button(onStartSync, Modifier.fillMaxWidth(), enabled = coupled && !running && !syncBusy) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (running) Text("✓", color = green)
+                    else if (syncBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Sync starten")
+                }
+            }
+            if (!coupled) Text(if (code.isBlank()) "→ Vul eerst de koppelcode in." else "→ Kies eerst de doelmap.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            if (running || syncBusy) OutlinedButton(onStopSync, Modifier.fillMaxWidth()) { Text("Sync stoppen") }
+            ListItem(
+                leadingContent = { if (running) Text("✓", color = green, style = MaterialTheme.typography.titleLarge) else if (syncBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) },
+                headlineContent = { Text(if (running) "Sync actief" else if (syncBusy) "Verbinden…" else "Sync gestopt") },
+                supportingContent = { Text("Status: $status") },
+            )
 
             HorizontalDivider()
             Text("Scherm delen (bediening op afstand)", style = MaterialTheme.typography.titleMedium)
-            Text("Vereist droidVNC-NG geïnstalleerd; de baas kijkt mee vanaf zijn desktop.", style = MaterialTheme.typography.bodySmall)
+            Text("Wordt normaal door de baas gestart vanaf het platform. Vereist droidVNC-NG.", style = MaterialTheme.typography.bodySmall)
             Button(onStartRemote, Modifier.fillMaxWidth(), enabled = code.isNotBlank()) { Text("Scherm delen starten") }
             OutlinedButton(onStopRemote, Modifier.fillMaxWidth()) { Text("Scherm delen stoppen") }
             ListItem(headlineContent = { Text("Remote: $remoteStatus") })
@@ -160,7 +181,7 @@ private fun PreviewCoupled() {
             code = "KRAAN-7F3A-92", server = "https://mv3d.be", folderLabel = "Trimble / Earthworks / Designs",
             coupled = true, running = true, status = "ok · 2 bestand(en) · 1 cmd · TRIMBLE_EARTHWORKS",
             remoteStatus = "actief · https://calm-river-8821.trycloudflare.com",
-            onCode = {}, onServer = {}, onSave = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+            onCode = {}, onServer = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
         )
     }
 }
@@ -172,7 +193,7 @@ private fun PreviewEmpty() {
         PairingScreen(
             code = "", server = "https://mv3d.be", folderLabel = "",
             coupled = false, running = false, status = "niet gekoppeld", remoteStatus = "uit",
-            onCode = {}, onServer = {}, onSave = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+            onCode = {}, onServer = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
         )
     }
 }

@@ -51,8 +51,23 @@ class MainActivity : ComponentActivity() {
                 var update by remember { mutableStateOf<Updater.Update?>(null) }
                 var updBusy by remember { mutableStateOf(false) }
                 var updErr by remember { mutableStateOf<String?>(null) }
-                // check bij openen én telkens de app naar de voorgrond komt (zodat een nieuwe release opgepikt wordt)
+                var updDismissed by remember { mutableStateOf(false) }
+                // check bij openen + elke 60s (pikt een nieuwe release op zonder herstart)
                 LaunchedEffect(Unit) { while (true) { runCatching { withContext(Dispatchers.IO) { Updater.check() } }.getOrNull()?.let { update = it }; kotlinx.coroutines.delay(60_000) } }
+                LaunchedEffect(update?.versionCode) { if (update != null) updDismissed = false } // nieuwe versie → pop-up opnieuw tonen
+
+                val doUpdate: () -> Unit = {
+                    val u = update
+                    if (u != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                            updErr = "Zet 'installeren van onbekende apps' AAN voor MV3D Machine, en tik dan opnieuw op Bijwerken."
+                            runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+                        } else {
+                            updBusy = true; updErr = null
+                            scope.launch { val e = withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) }.exceptionOrNull() }; updBusy = false; if (e != null) updErr = "Update mislukt: ${e.message}" }
+                        }
+                    }
+                }
 
                 val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
                     if (uri != null) {
@@ -84,18 +99,7 @@ class MainActivity : ComponentActivity() {
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
                     version = "build ${BuildConfig.VERSION_CODE}",
                     updateAvailable = update?.versionName, updateBusy = updBusy, updateError = updErr,
-                    onUpdate = {
-                        val u = update
-                        if (u != null) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-                                updErr = "Zet 'installeren van onbekende apps' AAN voor MV3D Machine, en tik dan opnieuw op Bijwerken."
-                                runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
-                            } else {
-                                updBusy = true; updErr = null
-                                scope.launch { val e = withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) }.exceptionOrNull() }; updBusy = false; if (e != null) updErr = "Update mislukt: ${e.message}" }
-                            }
-                        }
-                    },
+                    onUpdate = doUpdate,
                     onPickFolder = { pickTree.launch(null) },
                     syncBusy = syncStarting,
                     onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
@@ -104,6 +108,18 @@ class MainActivity : ComponentActivity() {
                     onStopRemote = { stopService(Intent(this@MainActivity, RemoteService::class.java)) },
                     codeField = codeField,
                 )
+
+                // pop-up bij een beschikbare update
+                val up = update
+                if (up != null && !updDismissed) {
+                    AlertDialog(
+                        onDismissRequest = { updDismissed = true },
+                        title = { Text("Nieuwe versie beschikbaar") },
+                        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Er staat een update klaar (${up.versionName}). Nu bijwerken?"); if (updErr != null) Text(updErr!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } },
+                        confirmButton = { Button(onClick = doUpdate, enabled = !updBusy) { if (updBusy) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Spacer(Modifier.size(8.dp)) }; Text(if (updBusy) "Downloaden…" else "Bijwerken") } },
+                        dismissButton = { TextButton(onClick = { updDismissed = true }) { Text("Later") } },
+                    )
+                }
             }
         }
     }

@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
                     running = running, status = status, remoteStatus = remoteStatus,
                     onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
+                    version = "build ${BuildConfig.VERSION_CODE}",
                     updateAvailable = update?.versionName, updateBusy = updBusy,
                     onUpdate = { val u = update; if (u != null) { updBusy = true; scope.launch { withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) } }; updBusy = false } } },
                     onPickFolder = { pickTree.launch(null) },
@@ -128,6 +129,7 @@ fun PairingScreen(
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {},
     syncBusy: Boolean = false,
+    version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, onUpdate: () -> Unit = {},
     codeField: String = code,
 ) {
@@ -190,6 +192,8 @@ fun PairingScreen(
             Button(onStartRemote, Modifier.fillMaxWidth(), enabled = code.isNotBlank()) { Text("Scherm delen starten") }
             OutlinedButton(onStopRemote, Modifier.fillMaxWidth()) { Text("Scherm delen stoppen") }
             ListItem(headlineContent = { Text("Remote: $remoteStatus") })
+
+            Text("MV3D Machine · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         }
     }
 }

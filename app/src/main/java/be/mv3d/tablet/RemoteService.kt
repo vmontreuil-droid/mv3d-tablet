@@ -51,13 +51,14 @@ class RemoteService : Service() {
         const val VNC_EXTRA_PASSWORD = "net.christianbeier.droidvnc_ng.EXTRA_PASSWORD"
         @Volatile var tunnelUrl: String? = null
         @Volatile var status: String = "uit"
+        @Volatile var active = false   // voorkomt dubbel starten (EADDRINUSE op de brug)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(2, notification("Scherm delen wordt gestart…"))
-        scope.launch { run() }
+        if (!active) { active = true; scope.launch { run() } } // al bezig? niet opnieuw starten
         return START_STICKY
     }
 
@@ -65,6 +66,7 @@ class RemoteService : Service() {
         val pw = randomPassword() // per sessie; via droidVNC-NG (RFB) + gemeld aan MV3D voor auto-login
         startDroidVnc(pw)
         try {
+            try { bridge?.stop() } catch (_: Exception) {}          // eventuele oude brug eerst vrijgeven
             bridge = NoVncBridge(this, WEB_PORT, VNC_PORT).also { it.startBridge() } // noVNC + ws→tcp op WEB_PORT
             val url = startCloudflared()
             tunnelUrl = url; status = "actief · $url"
@@ -73,6 +75,9 @@ class RemoteService : Service() {
             if (code.isNotBlank()) Api(server, code).tunnel(url, pw)
         } catch (e: Exception) {
             status = "fout: ${e.message}"; updateNotification(status)
+            try { bridge?.stop() } catch (_: Exception) {}
+            try { cloudflared?.destroy() } catch (_: Exception) {}
+            active = false // laat een nieuwe poging toe
         }
     }
 
@@ -132,6 +137,7 @@ class RemoteService : Service() {
     }
 
     override fun onDestroy() {
+        active = false
         try { cloudflared?.destroy() } catch (_: Exception) {}
         try { bridge?.stop() } catch (_: Exception) {}
         stopDroidVnc()

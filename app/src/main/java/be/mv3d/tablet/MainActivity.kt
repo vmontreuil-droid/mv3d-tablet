@@ -50,7 +50,9 @@ class MainActivity : ComponentActivity() {
                 // auto-update: check de laatste GitHub-release bij het openen
                 var update by remember { mutableStateOf<Updater.Update?>(null) }
                 var updBusy by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) { update = withContext(Dispatchers.IO) { runCatching { Updater.check() }.getOrNull() } }
+                var updErr by remember { mutableStateOf<String?>(null) }
+                // check bij openen én telkens de app naar de voorgrond komt (zodat een nieuwe release opgepikt wordt)
+                LaunchedEffect(Unit) { while (true) { runCatching { withContext(Dispatchers.IO) { Updater.check() } }.getOrNull()?.let { update = it }; kotlinx.coroutines.delay(60_000) } }
 
                 val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
                     if (uri != null) {
@@ -81,8 +83,19 @@ class MainActivity : ComponentActivity() {
                     onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
                     version = "build ${BuildConfig.VERSION_CODE}",
-                    updateAvailable = update?.versionName, updateBusy = updBusy,
-                    onUpdate = { val u = update; if (u != null) { updBusy = true; scope.launch { withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) } }; updBusy = false } } },
+                    updateAvailable = update?.versionName, updateBusy = updBusy, updateError = updErr,
+                    onUpdate = {
+                        val u = update
+                        if (u != null) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                                updErr = "Zet 'installeren van onbekende apps' AAN voor MV3D Machine, en tik dan opnieuw op Bijwerken."
+                                runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+                            } else {
+                                updBusy = true; updErr = null
+                                scope.launch { val e = withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) }.exceptionOrNull() }; updBusy = false; if (e != null) updErr = "Update mislukt: ${e.message}" }
+                            }
+                        }
+                    },
                     onPickFolder = { pickTree.launch(null) },
                     syncBusy = syncStarting,
                     onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
@@ -130,7 +143,7 @@ fun PairingScreen(
     onScan: () -> Unit = {},
     syncBusy: Boolean = false,
     version: String = "",
-    updateAvailable: String? = null, updateBusy: Boolean = false, onUpdate: () -> Unit = {},
+    updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
     codeField: String = code,
 ) {
     val green = Color(0xFF2E7D32)
@@ -153,6 +166,7 @@ fun PairingScreen(
                                 Text(if (updateBusy) "Downloaden…" else "Bijwerken")
                             }
                         }
+                        if (updateError != null) Text(updateError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

@@ -38,11 +38,9 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 val scope = rememberCoroutineScope()
                 val code by prefs.codeFlow.collectAsState(initial = "")
-                val server by prefs.serverFlow.collectAsState(initial = "https://mv3d.be")
                 val tree by prefs.treeFlow.collectAsState(initial = "")
 
                 var codeField by remember(code) { mutableStateOf(code) }
-                var serverField by remember(server) { mutableStateOf(server) }
                 var running by remember { mutableStateOf(SyncService.running) }
                 var status by remember { mutableStateOf(SyncService.lastStatus) }
                 var remoteStatus by remember { mutableStateOf(RemoteService.status) }
@@ -77,11 +75,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 PairingScreen(
-                    code = code, server = serverField, folderLabel = folderLabel(tree),
+                    code = code, folderLabel = folderLabel(tree),
                     coupled = code.isNotBlank() && tree.isNotBlank(),
                     running = running, status = status, remoteStatus = remoteStatus,
                     onCode = { codeField = it; scope.launch { prefs.setCode(it) } },      // automatisch bewaren
-                    onServer = { serverField = it; scope.launch { prefs.setServer(it) } }, // automatisch bewaren
                     onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
                     updateAvailable = update?.versionName, updateBusy = updBusy,
                     onUpdate = { val u = update; if (u != null) { updBusy = true; scope.launch { withContext(Dispatchers.IO) { runCatching { Updater.downloadAndInstall(this@MainActivity, u.apkUrl) } }; updBusy = false } } },
@@ -124,9 +121,9 @@ class MainActivity : ComponentActivity() {
 /** Stateless scherm — previewbaar in Android Studio zonder toestel. */
 @Composable
 fun PairingScreen(
-    code: String, server: String, folderLabel: String, coupled: Boolean,
+    code: String, folderLabel: String, coupled: Boolean,
     running: Boolean, status: String, remoteStatus: String,
-    onCode: (String) -> Unit, onServer: (String) -> Unit,
+    onCode: (String) -> Unit,
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
     onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {},
@@ -160,7 +157,6 @@ fun PairingScreen(
 
             OutlinedTextField(codeField, onCode, label = { Text("Koppelcode (connection code)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onScan, Modifier.fillMaxWidth()) { Text("QR-code scannen") }
-            OutlinedTextField(server, onServer, label = { Text("Server") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
             Text("Wordt automatisch bewaard.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             HorizontalDivider()
@@ -203,10 +199,10 @@ fun PairingScreen(
 private fun PreviewCoupled() {
     MaterialTheme {
         PairingScreen(
-            code = "KRAAN-7F3A-92", server = "https://mv3d.be", folderLabel = "Trimble / Earthworks / Designs",
+            code = "KRAAN-7F3A-92", folderLabel = "Trimble / Earthworks / Designs",
             coupled = true, running = true, status = "ok · 2 bestand(en) · 1 cmd · TRIMBLE_EARTHWORKS",
             remoteStatus = "actief · https://calm-river-8821.trycloudflare.com",
-            onCode = {}, onServer = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+            onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
         )
     }
 }
@@ -216,9 +212,9 @@ private fun PreviewCoupled() {
 private fun PreviewEmpty() {
     MaterialTheme {
         PairingScreen(
-            code = "", server = "https://mv3d.be", folderLabel = "",
+            code = "", folderLabel = "",
             coupled = false, running = false, status = "niet gekoppeld", remoteStatus = "uit",
-            onCode = {}, onServer = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+            onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
         )
     }
 }

@@ -11,8 +11,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -64,9 +66,8 @@ class MainActivity : ComponentActivity() {
                 var codeField by remember(code) { mutableStateOf(code) }
                 var running by remember { mutableStateOf(SyncService.running) }
                 var status by remember { mutableStateOf(SyncService.lastStatus) }
-                var remoteStatus by remember { mutableStateOf(RemoteService.status) }
                 var syncStarting by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; remoteStatus = RemoteService.status; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
+                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
 
                 // auto-update
                 var update by remember { mutableStateOf<Updater.Update?>(null) }
@@ -109,13 +110,14 @@ class MainActivity : ComponentActivity() {
                         "home" -> HomeScreen(
                             version = "build ${BuildConfig.VERSION_CODE}",
                             coupled = code.isNotBlank() && tree.isNotBlank(),
+                            code = code,
                             onLogin = openPortal,
                             onPair = { screen = "pair" },
                         )
                         else -> PairingScreen(
                             code = code, folderLabel = folderLabel(tree),
                             coupled = code.isNotBlank() && tree.isNotBlank(),
-                            running = running, status = status, remoteStatus = remoteStatus,
+                            running = running, status = status,
                             syncBusy = syncStarting, version = "build ${BuildConfig.VERSION_CODE}",
                             onBack = { screen = "home" },
                             onCode = { codeField = it; scope.launch { prefs.setCode(it) } },
@@ -124,8 +126,6 @@ class MainActivity : ComponentActivity() {
                             onPickFolder = { pickTree.launch(null) },
                             onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
                             onStopSync = { syncStarting = false; stopService(Intent(this@MainActivity, SyncService::class.java)) },
-                            onStartRemote = { startSvc(RemoteService::class.java) },
-                            onStopRemote = { stopService(Intent(this@MainActivity, RemoteService::class.java)) },
                             codeField = codeField,
                         )
                     }
@@ -203,7 +203,7 @@ private fun StatusPill(ok: Boolean, busy: Boolean, text: String) {
 
 // ── Startscherm / login ──
 @Composable
-fun HomeScreen(version: String, coupled: Boolean, onLogin: () -> Unit, onPair: () -> Unit) {
+fun HomeScreen(version: String, coupled: Boolean, code: String, onLogin: () -> Unit, onPair: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -215,21 +215,33 @@ fun HomeScreen(version: String, coupled: Boolean, onLogin: () -> Unit, onPair: (
         Text("Machinebesturing · werven · machines", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
 
+        // Machinist ziet enkel het portaal — geen instellingen.
         Button(onLogin, Modifier.fillMaxWidth().height(54.dp)) {
             Icon(Icons.Outlined.Login, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
-            Text("Inloggen op het portaal", style = MaterialTheme.typography.titleMedium)
+            Text("Portaal openen", style = MaterialTheme.typography.titleMedium)
         }
-        OutlinedButton(onPair, Modifier.fillMaxWidth().height(54.dp)) {
-            Icon(Icons.Outlined.SettingsRemote, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
-            Text(if (coupled) "Tablet-instellingen" else "Tablet koppelen (machinist)")
-        }
-        if (coupled) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(16.dp))
-            Text("Tablet gekoppeld", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        if (coupled) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(18.dp))
+                Text("Verbonden met MV3D" + if (code.isNotBlank()) " · $code" else "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            // Nog niet gekoppeld → enkel dan de koppelknop tonen (baas richt in).
+            OutlinedButton(onPair, Modifier.fillMaxWidth().height(54.dp)) {
+                Icon(Icons.Outlined.SettingsRemote, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
+                Text("Tablet koppelen (baas)")
+            }
         }
 
         Spacer(Modifier.weight(1f))
-        Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Baas-gebaar: lang drukken op de voettekst opent de instellingen, óók als gekoppeld.
+        Text(
+            "MV3D · $version",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onPair() }) },
+        )
     }
 }
 
@@ -237,10 +249,9 @@ fun HomeScreen(version: String, coupled: Boolean, onLogin: () -> Unit, onPair: (
 @Composable
 fun PairingScreen(
     code: String, folderLabel: String, coupled: Boolean,
-    running: Boolean, status: String, remoteStatus: String,
+    running: Boolean, status: String,
     onCode: (String) -> Unit,
     onPickFolder: () -> Unit, onStartSync: () -> Unit, onStopSync: () -> Unit,
-    onStartRemote: () -> Unit, onStopRemote: () -> Unit,
     onScan: () -> Unit = {}, onOpenPortal: () -> Unit = {}, onBack: () -> Unit = {},
     syncBusy: Boolean = false, version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
@@ -295,12 +306,7 @@ fun PairingScreen(
             if (running || syncBusy) OutlinedButton(onStopSync, Modifier.fillMaxWidth()) { Text("Sync stoppen") }
         }
 
-        SectionCard(Icons.Outlined.ScreenShare, "Scherm delen") {
-            Text("Wordt normaal door de baas gestart vanaf het portaal. Vereist droidVNC-NG.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Remote: $remoteStatus", style = MaterialTheme.typography.bodySmall)
-            Button(onStartRemote, Modifier.fillMaxWidth(), enabled = code.isNotBlank()) { Text("Scherm delen starten") }
-            OutlinedButton(onStopRemote, Modifier.fillMaxWidth()) { Text("Scherm delen stoppen") }
-        }
+        Text("Scherm delen wordt volledig door de baas vanaf het portaal gestart — de machinist hoeft hier niets te doen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         OutlinedButton(onOpenPortal, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("MV3D-portaal openen") }
         Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -309,7 +315,7 @@ fun PairingScreen(
 
 @Preview(name = "Home", showBackground = true, widthDp = 420, heightDp = 900)
 @Composable
-private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, onLogin = {}, onPair = {}) } } }
+private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", onLogin = {}, onPair = {}) } } }
 
 @Preview(name = "Koppelen", showBackground = true, widthDp = 420, heightDp = 1200)
 @Composable
@@ -318,8 +324,8 @@ private fun PreviewPair() {
         Surface(color = MaterialTheme.colorScheme.background) {
             PairingScreen(
                 code = "KRAAN-12", folderLabel = "Trimble / Earthworks", coupled = true,
-                running = true, status = "ok · 2 bestand(en) · TRIMBLE", remoteStatus = "uit",
-                onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {}, onStartRemote = {}, onStopRemote = {},
+                running = true, status = "ok · 2 bestand(en) · TRIMBLE",
+                onCode = {}, onPickFolder = {}, onStartSync = {}, onStopSync = {},
                 version = "build 12",
             )
         }

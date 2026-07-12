@@ -1,6 +1,7 @@
 package be.mv3d.tablet
 
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -14,6 +15,8 @@ data class Command(
     val fileName: String?, val uploadUrl: String?, val downloadUrl: String?
 )
 data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val name: String?, val commands: List<Command>)
+data class ConvOut(val path: String, val text: String)
+data class ConvResult(val werf: String, val folder: String, val surfaces: Int, val lines: Int, val files: List<ConvOut>)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
 class Api(private val server: String, private val code: String) {
@@ -63,6 +66,22 @@ class Api(private val server: String, private val code: String) {
         val req = Request.Builder().url("$server/api/machines/tunnel")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().close()
+    }
+
+    /** POST /api/converter/unicontrol — bronbestanden → Unicontrol-project (xml+dxf+Project.yml). */
+    fun convertUnicontrol(werf: String, sources: List<Pair<String, ByteArray>>, region: String = "BE"): ConvResult {
+        val mp = MultipartBody.Builder().setType(MultipartBody.FORM)
+        mp.addFormDataPart("name", werf)
+        for ((fname, bytes) in sources) mp.addFormDataPart("files", fname, bytes.toRequestBody("application/octet-stream".toMediaType()))
+        val req = Request.Builder().url("$server/api/converter/unicontrol?code=$code&region=$region").post(mp.build()).build()
+        http.newCall(req).execute().use { r ->
+            val txt = r.body?.string() ?: "{}"
+            if (!r.isSuccessful) throw RuntimeException((try { JSONObject(txt).optString("error") } catch (_: Exception) { "" }).ifBlank { "conversie mislukt (${r.code})" })
+            val o = JSONObject(txt)
+            val files = ArrayList<ConvOut>()
+            o.optJSONArray("files")?.let { for (i in 0 until it.length()) { val f = it.getJSONObject(i); files.add(ConvOut(f.getString("path"), f.getString("text"))) } }
+            return ConvResult(o.optString("werf"), o.optString("folder"), o.optInt("surfaces"), o.optInt("lines"), files)
+        }
     }
 
     /** GET /api/realtime-config — Supabase-URL + anon-key voor het live websocket-kanaal. */

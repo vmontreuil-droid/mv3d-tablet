@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import android.widget.Toast
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -113,6 +114,46 @@ class MainActivity : ComponentActivity() {
                     if (code.isNotBlank() && tree.isNotBlank() && !SyncService.running) { requestRuntimePerms(askPerms); startSvc(SyncService::class.java) }
                 }
 
+                // ── Bestandsconvertor (Unicontrol) ──
+                val uni by prefs.uniFlow.collectAsState(initial = "")
+                var convBrand by remember { mutableStateOf("") }
+                var convSources by remember { mutableStateOf<List<Pair<String, Uri>>>(emptyList()) }
+                var convWerf by remember { mutableStateOf("") }
+                var convBusy by remember { mutableStateOf(false) }
+                var convMsg by remember { mutableStateOf<String?>(null) }
+                var convDone by remember { mutableStateOf(false) }
+                val pickSources = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                    val list = uris.mapNotNull { u ->
+                        val n = DocumentFile.fromSingleUri(this@MainActivity, u)?.name ?: u.lastPathSegment ?: "bestand"
+                        n to u
+                    }
+                    if (list.isNotEmpty()) convSources = list
+                }
+                val pickUni = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+                    if (uri != null) {
+                        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        scope.launch { prefs.setUni(uri.toString()) }
+                    }
+                }
+                val doConvert = {
+                    if (convSources.isNotEmpty() && convWerf.isNotBlank() && uni.isNotBlank()) {
+                        convBusy = true; convMsg = null; convDone = false
+                        scope.launch {
+                            val res = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    val srcBytes = convSources.map { (n, u) -> n to (contentResolver.openInputStream(u)?.use { s -> s.readBytes() } ?: ByteArray(0)) }
+                                    val out = Api(prefs.server(), prefs.code()).convertUnicontrol(convWerf.trim(), srcBytes)
+                                    writeUnicontrolProject(Uri.parse(uni), convWerf.trim(), out.files)
+                                    out
+                                }
+                            }
+                            convBusy = false
+                            res.onSuccess { convDone = true; convMsg = "Klaar: ${it.surfaces} oppervlak, ${it.lines} lijnen → ${it.folder}" }
+                                .onFailure { convMsg = "Fout: ${it.message}" }
+                        }
+                    }
+                }
+
                 val openPortal = { startActivity(Intent(this@MainActivity, WebViewActivity::class.java)) }
 
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -123,6 +164,20 @@ class MainActivity : ComponentActivity() {
                             code = code,
                             machineName = machineName,
                             onPair = { screen = "pair" },
+                            onConvert = { b -> convBrand = b; convSources = emptyList(); convWerf = ""; convMsg = null; convDone = false; screen = "convert" },
+                        )
+                        "convert" -> ConverterScreen(
+                            brand = convBrand,
+                            sources = convSources,
+                            werf = convWerf,
+                            uniChosen = uni.isNotBlank(),
+                            busy = convBusy, done = convDone, message = convMsg,
+                            onBack = { screen = "home" },
+                            onPickSources = { pickSources.launch(arrayOf("*/*")) },
+                            onPickUni = { pickUni.launch(null) },
+                            onWerf = { convWerf = it },
+                            onConvert = { doConvert() },
+                            onLaunchUni = { launchUnicontrol() },
                         )
                         else -> PairingScreen(
                             code = code, folderLabel = folderLabel(tree),
@@ -159,6 +214,27 @@ class MainActivity : ComponentActivity() {
     private fun startSvc(cls: Class<*>) {
         val i = Intent(this, cls)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
+    }
+
+    /** Schrijft de geconverteerde bestanden in <Unicontrol>/Projects/<werf>/. */
+    private fun writeUnicontrolProject(uniTreeUri: Uri, werf: String, files: List<ConvOut>) {
+        val root = DocumentFile.fromTreeUri(this, uniTreeUri) ?: throw RuntimeException("Unicontrol-map ongeldig")
+        val projects = root.findFile("Projects")?.takeIf { it.isDirectory } ?: root.createDirectory("Projects") ?: throw RuntimeException("Kan Projects-map niet maken")
+        val werfDir = projects.findFile(werf)?.takeIf { it.isDirectory } ?: projects.createDirectory(werf) ?: throw RuntimeException("Kan werfmap niet maken")
+        for (f in files) {
+            werfDir.findFile(f.path)?.delete()
+            val doc = werfDir.createFile("application/octet-stream", f.path) ?: throw RuntimeException("Kan ${f.path} niet aanmaken")
+            contentResolver.openOutputStream(doc.uri)?.use { it.write(f.text.toByteArray(Charsets.UTF_8)) }
+        }
+    }
+
+    /** Zoekt de geïnstalleerde Unicontrol-app (via launcher-query) en start ze. */
+    private fun launchUnicontrol() {
+        val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val ri = packageManager.queryIntentActivities(main, 0).firstOrNull { it.activityInfo.packageName.contains("unicontrol", ignoreCase = true) }
+        val intent = ri?.let { packageManager.getLaunchIntentForPackage(it.activityInfo.packageName) }
+        if (intent != null) startActivity(intent)
+        else Toast.makeText(this, "Unicontrol-app niet gevonden op deze tablet", Toast.LENGTH_LONG).show()
     }
 
     private fun folderLabel(tree: String) = if (tree.isBlank()) "" else (Uri.parse(tree).lastPathSegment ?: tree)
@@ -213,7 +289,7 @@ private fun StatusPill(ok: Boolean, busy: Boolean, text: String) {
 
 // ── Startscherm / login ──
 @Composable
-fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: String?, onPair: () -> Unit) {
+fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: String?, onPair: () -> Unit, onConvert: (String) -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -249,7 +325,7 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
         }
 
         Spacer(Modifier.height(10.dp))
-        ConverterSection()
+        ConverterSection(onBrand = onConvert)
 
         Spacer(Modifier.height(18.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -266,9 +342,58 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
     }
 }
 
-// ── Bestandsconvertor: 4 merk-blokken (echte conversie volgt later) ──
+// ── Converter-wizard (bron → Unicontrol-project) ──
 @Composable
-private fun ConverterSection() {
+private fun ConverterScreen(
+    brand: String,
+    sources: List<Pair<String, android.net.Uri>>,
+    werf: String,
+    uniChosen: Boolean,
+    busy: Boolean, done: Boolean, message: String?,
+    onBack: () -> Unit,
+    onPickSources: () -> Unit,
+    onPickUni: () -> Unit,
+    onWerf: (String) -> Unit,
+    onConvert: () -> Unit,
+    onLaunchUni: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Terug", tint = MaterialTheme.colorScheme.onSurface) }
+            Logo(40)
+            Column { Text("Converteren → Unicontrol", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Bron: $brand", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+
+        SectionCard(Icons.Outlined.FolderOpen, "Bronbestand(en) — $brand") {
+            Button(onPickSources, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Bestand(en) zoeken op de tablet") }
+            if (sources.isEmpty()) Text("Nog geen bestand gekozen. Trimble: .svl + .svd · Topcon: .tp3 · Leica: .dxf + .xml", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else sources.forEach { (n, _) -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(16.dp)); Text(n, style = MaterialTheme.typography.bodyMedium) } }
+        }
+
+        SectionCard(Icons.Outlined.SettingsRemote, "Unicontrol-map") {
+            if (uniChosen) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(18.dp)); Text("Unicontrol-map gekozen", style = MaterialTheme.typography.bodyMedium) }
+            else { Text("Kies één keer de Unicontrol-map (die met de map Projects). De app onthoudt ze.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedButton(onPickUni, Modifier.fillMaxWidth()) { Text("Unicontrol-map kiezen") } }
+        }
+
+        SectionCard(Icons.Outlined.Link, "Werfnaam") {
+            OutlinedTextField(werf, onWerf, label = { Text("Werfnaam") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
+
+        Button(onConvert, Modifier.fillMaxWidth().height(52.dp), enabled = sources.isNotEmpty() && werf.isNotBlank() && uniChosen && !busy) {
+            if (busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.size(8.dp)) }
+            Text(if (busy) "Converteren…" else "Converteren & naar Unicontrol")
+        }
+        if (message != null) Text(message, style = MaterialTheme.typography.bodyMedium, color = if (message.startsWith("Fout")) MaterialTheme.colorScheme.error else Color(0xFF43C98A))
+        if (done) Button(onLaunchUni, Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Start Unicontrol") }
+    }
+}
+
+// ── Bestandsconvertor: merk-tegels op het startscherm ──
+@Composable
+private fun ConverterSection(onBrand: (String) -> Unit) {
     val ctx = LocalContext.current
     val brands = listOf(
         "Unicontrol" to R.drawable.tile_unicontrol,
@@ -290,7 +415,10 @@ private fun ConverterSection() {
                     modifier = Modifier.weight(1f).aspectRatio(1f)
                         .shadow(3.dp, RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { Toast.makeText(ctx, "Binnenkort: $name-bestanden converteren", Toast.LENGTH_SHORT).show() },
+                        .clickable {
+                            if (name == "Trimble" || name == "Topcon" || name == "Leica") onBrand(name)
+                            else Toast.makeText(ctx, "$name-conversie: binnenkort", Toast.LENGTH_SHORT).show()
+                        },
                 )
             }
         }
@@ -367,7 +495,7 @@ fun PairingScreen(
 
 @Preview(name = "Home", showBackground = true, widthDp = 420, heightDp = 900)
 @Composable
-private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", machineName = "Kraan 12", onPair = {}) } } }
+private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", machineName = "Kraan 12", onPair = {}, onConvert = {}) } } }
 
 @Preview(name = "Koppelen", showBackground = true, widthDp = 420, heightDp = 1200)
 @Composable

@@ -116,7 +116,9 @@ class RemoteService : Service() {
         ).redirectErrorStream(true).start()
         cloudflared = proc
 
-        val rx = Regex("https://[a-z0-9-]+\\.trycloudflare\\.com")
+        // Quick-tunnels hebben ALTIJD een gekoppelde naam (bv. "grote-blauwe-kat-42.trycloudflare.com").
+        // Eis minstens één koppelteken zodat de registratie-URL "api.trycloudflare.com" niet matcht.
+        val rx = Regex("https://[a-z0-9]+(?:-[a-z0-9]+)+\\.trycloudflare\\.com")
         val reader = BufferedReader(InputStreamReader(proc.inputStream))
         val deadline = System.currentTimeMillis() + 30_000
         var line: String?

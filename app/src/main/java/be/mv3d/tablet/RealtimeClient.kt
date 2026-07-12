@@ -35,7 +35,7 @@ class RealtimeClient(
         private set
 
     fun connect() {
-        val host = supabaseUrl.removePrefix("https://").removePrefix("http://").trimEnd('/')
+        val host = supabaseUrl.trim().removePrefix("https://").removePrefix("http://").trim().trimEnd('/')
         val url = "wss://$host/realtime/v1/websocket?apikey=$anonKey&vsn=1.0.0"
         ws = http.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {

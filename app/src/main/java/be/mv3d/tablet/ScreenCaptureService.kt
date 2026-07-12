@@ -46,8 +46,8 @@ class ScreenCaptureService : Service() {
 
     companion object {
         const val CHANNEL = "mv3d_screen"
-        const val MAX_WIDTH = 900
-        const val FRAME_MS = 120L   // sneller: over de websocket is versturen goedkoop
+        const val MAX_WIDTH = 1000
+        const val FRAME_MS = 110L   // sneller: over de websocket is versturen goedkoop
         const val EXTRA_RESULT = "result_code"
         const val EXTRA_DATA = "result_data"
         @Volatile var status: String = "uit"
@@ -108,7 +108,7 @@ class ScreenCaptureService : Service() {
                     bmp.copyPixelsFromBuffer(plane.buffer)
                     if (bmpW != capW) { val c = Bitmap.createBitmap(bmp, 0, 0, capW, capH); bmp.recycle(); bmp = c }
                     val bos = ByteArrayOutputStream()
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 60, bos)
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 72, bos)
                     latestJpeg = bos.toByteArray()
                     bmp.recycle()
                 } catch (_: Exception) {
@@ -124,30 +124,34 @@ class ScreenCaptureService : Service() {
             streaming = true
             report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")
 
-            // live websocket-kanaal (Supabase Realtime) opzetten NA de report hierboven,
-            // zodat de rt:-diagnostiek zichtbaar blijft en niet overschreven wordt.
+            // live websocket-kanaal (Supabase Realtime). Automatisch (her)verbinden zolang niet
+            // joined → geen force-stop nodig als de config even fout was.
             var rt: RealtimeClient? = null
             val a = api
-            if (a != null) try {
-                val cfg = a.realtimeConfig()
-                if (cfg == null) a.screen("rt: geen config (endpoint faalt?)")
-                else {
-                    a.screen("rt: config ok, verbinden…")
-                    rt = RealtimeClient(cfg.first, cfg.second, "screen-${prefs.code()}",
-                        onInput = { o -> applyInput(o) },
-                        onStatus = { s -> a.screen("rt: $s") }
-                    ).also { it.connect() }
-                }
-            } catch (e: Exception) { a.screen("rt: uitzondering: ${e.javaClass.simpleName}: ${e.message}") }
-
+            var lastRtTry = 0L
             var lastReport = 0L
             var wasStreaming = true
             var announcedRt = false
             var lastSent: ByteArray? = null
             var lastFrameSentAt = 0L
             var lastBeat = System.currentTimeMillis()
-            while (scope.isActive && active && api != null) {
+            while (scope.isActive && active && a != null) {
                 val nowT = System.currentTimeMillis()
+
+                // (her)verbinden zolang de websocket niet joined is (elke 5s)
+                if ((rt == null || !rt!!.joined) && nowT - lastRtTry > 5000) {
+                    lastRtTry = nowT
+                    try { rt?.close() } catch (_: Exception) {}
+                    rt = try {
+                        val cfg = a.realtimeConfig()
+                        if (cfg == null) { a.screen("rt: geen config"); null }
+                        else RealtimeClient(cfg.first.trim(), cfg.second.trim(), "screen-${prefs.code()}",
+                            onInput = { o -> applyInput(o) },
+                            onStatus = { s -> a.screen("rt: $s") }
+                        ).also { it.connect() }
+                    } catch (e: Exception) { a.screen("rt: uitzondering: ${e.message}"); null }
+                }
+
                 if (streaming) {
                     val jpg = latestJpeg
                     // nieuw frame OF elke ~1s opnieuw (stilstaand scherm / net-verbonden viewer krijgt altijd beeld)
@@ -162,7 +166,7 @@ class ScreenCaptureService : Service() {
                         } else {
                             // terugval: HTTP (trager, maar werkt zonder websocket); input komt in het antwoord
                             try {
-                                val inputs = api.screenFrame(jpg)
+                                val inputs = a.screenFrame(jpg)
                                 for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
                                 lastSent = jpg; lastFrameSentAt = nowT
                             } catch (e: Exception) {

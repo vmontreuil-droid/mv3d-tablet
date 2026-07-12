@@ -121,20 +121,25 @@ class ScreenCaptureService : Service() {
                 ir.surface, null, handler
             )
 
-            // live websocket-kanaal (Supabase Realtime) opzetten; input komt hierlangs binnen.
+            streaming = true
+            report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")
+
+            // live websocket-kanaal (Supabase Realtime) opzetten NA de report hierboven,
+            // zodat de rt:-diagnostiek zichtbaar blijft en niet overschreven wordt.
             var rt: RealtimeClient? = null
             val a = api
             if (a != null) try {
                 val cfg = a.realtimeConfig()
-                if (cfg == null) a.screen("rt: geen config")
-                else rt = RealtimeClient(cfg.first, cfg.second, "screen-${prefs.code()}",
-                    onInput = { o -> applyInput(o) },
-                    onStatus = { s -> a.screen("rt: $s") }
-                ).also { it.connect() }
-            } catch (e: Exception) { a.screen("rt: uitzondering: ${e.message}") }
+                if (cfg == null) a.screen("rt: geen config (endpoint faalt?)")
+                else {
+                    a.screen("rt: config ok, verbinden…")
+                    rt = RealtimeClient(cfg.first, cfg.second, "screen-${prefs.code()}",
+                        onInput = { o -> applyInput(o) },
+                        onStatus = { s -> a.screen("rt: $s") }
+                    ).also { it.connect() }
+                }
+            } catch (e: Exception) { a.screen("rt: uitzondering: ${e.javaClass.simpleName}: ${e.message}") }
 
-            streaming = true
-            report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")
             var lastReport = 0L
             var wasStreaming = true
             var announcedRt = false

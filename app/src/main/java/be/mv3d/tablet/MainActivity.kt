@@ -111,7 +111,6 @@ class MainActivity : ComponentActivity() {
                             version = "build ${BuildConfig.VERSION_CODE}",
                             coupled = code.isNotBlank() && tree.isNotBlank(),
                             code = code,
-                            onLogin = openPortal,
                             onPair = { screen = "pair" },
                         )
                         else -> PairingScreen(
@@ -203,24 +202,20 @@ private fun StatusPill(ok: Boolean, busy: Boolean, text: String) {
 
 // ── Startscherm / login ──
 @Composable
-fun HomeScreen(version: String, coupled: Boolean, code: String, onLogin: () -> Unit, onPair: () -> Unit) {
+fun HomeScreen(version: String, coupled: Boolean, code: String, onPair: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(48.dp))
         Logo(72)
         Text("3DG-Manager", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Machinebesturing · werven · machines", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // Machinist ziet enkel het portaal — geen instellingen.
-        Button(onLogin, Modifier.fillMaxWidth().height(54.dp)) {
-            Icon(Icons.Outlined.Login, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.size(10.dp))
-            Text("Portaal openen", style = MaterialTheme.typography.titleMedium)
-        }
-
+        // Machinist doet niks — enkel de verbonden-status. De baas beheert alles vanaf
+        // het portaal; instellingen zitten achter de lang-druk op de voettekst.
         if (coupled) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(18.dp))
@@ -315,7 +310,7 @@ fun PairingScreen(
 
 @Preview(name = "Home", showBackground = true, widthDp = 420, heightDp = 900)
 @Composable
-private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", onLogin = {}, onPair = {}) } } }
+private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", onPair = {}) } } }
 
 @Preview(name = "Koppelen", showBackground = true, widthDp = 420, heightDp = 1200)
 @Composable

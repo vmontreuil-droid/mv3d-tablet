@@ -29,6 +29,7 @@ class RealtimeClient(
     private var ws: WebSocket? = null
     private val ref = AtomicInteger(1)
     private val phxTopic = "realtime:$channel"
+    private var joinRef = "1"
     @Volatile var joined = false
         private set
 
@@ -37,13 +38,18 @@ class RealtimeClient(
         val url = "wss://$host/realtime/v1/websocket?apikey=$anonKey&vsn=1.0.0"
         ws = http.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                joinRef = ref.getAndIncrement().toString()
+                // exact zoals supabase-js: join_ref + access_token + postgres_changes meesturen.
                 val join = JSONObject()
                     .put("topic", phxTopic).put("event", "phx_join")
-                    .put("payload", JSONObject().put("config", JSONObject()
-                        .put("broadcast", JSONObject().put("self", false).put("ack", false))
-                        .put("presence", JSONObject().put("key", ""))
-                        .put("private", false)))
-                    .put("ref", ref.getAndIncrement().toString())
+                    .put("payload", JSONObject()
+                        .put("config", JSONObject()
+                            .put("broadcast", JSONObject().put("self", false).put("ack", false))
+                            .put("presence", JSONObject().put("key", ""))
+                            .put("postgres_changes", org.json.JSONArray())
+                            .put("private", false))
+                        .put("access_token", anonKey))
+                    .put("ref", joinRef).put("join_ref", joinRef)
                 webSocket.send(join.toString())
             }
 
@@ -73,7 +79,7 @@ class RealtimeClient(
             .put("topic", phxTopic).put("event", "broadcast")
             .put("payload", JSONObject().put("type", "broadcast").put("event", "frame")
                 .put("payload", JSONObject().put("jpg", b64)))
-            .put("ref", ref.getAndIncrement().toString())
+            .put("ref", ref.getAndIncrement().toString()).put("join_ref", joinRef)
         return sock.send(msg.toString())
     }
 

@@ -174,6 +174,10 @@ class ScreenCaptureService : Service() {
     }
 
     private fun applyInput(o: JSONObject) {
+        when (o.optString("type")) {   // pauze/hervat hebben geen accessibility nodig
+            "pause" -> { streaming = false; return }
+            "resume" -> { streaming = true; return }
+        }
         val svc = RemoteInputService.instance ?: return
         when (o.optString("type")) {
             "tap" -> svc.tap(o.optDouble("x").toFloat(), o.optDouble("y").toFloat())

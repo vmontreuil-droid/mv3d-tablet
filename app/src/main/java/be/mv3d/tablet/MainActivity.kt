@@ -66,8 +66,9 @@ class MainActivity : ComponentActivity() {
                 var codeField by remember(code) { mutableStateOf(code) }
                 var running by remember { mutableStateOf(SyncService.running) }
                 var status by remember { mutableStateOf(SyncService.lastStatus) }
+                var machineName by remember { mutableStateOf(SyncService.machineName) }
                 var syncStarting by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
+                LaunchedEffect(Unit) { while (true) { status = SyncService.lastStatus; running = SyncService.running; machineName = SyncService.machineName; if (running) syncStarting = false; kotlinx.coroutines.delay(700) } }
 
                 // auto-update
                 var update by remember { mutableStateOf<Updater.Update?>(null) }
@@ -111,6 +112,7 @@ class MainActivity : ComponentActivity() {
                             version = "build ${BuildConfig.VERSION_CODE}",
                             coupled = code.isNotBlank() && tree.isNotBlank(),
                             code = code,
+                            machineName = machineName,
                             onPair = { screen = "pair" },
                         )
                         else -> PairingScreen(
@@ -202,7 +204,7 @@ private fun StatusPill(ok: Boolean, busy: Boolean, text: String) {
 
 // ── Startscherm / login ──
 @Composable
-fun HomeScreen(version: String, coupled: Boolean, code: String, onPair: () -> Unit) {
+fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: String?, onPair: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -219,8 +221,10 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, onPair: () -> Un
         if (coupled) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(18.dp))
-                Text("Verbonden met MV3D" + if (code.isNotBlank()) " · $code" else "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Verbonden met MV3D", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (!machineName.isNullOrBlank()) Text(machineName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Gold, textAlign = TextAlign.Center)
+            if (code.isNotBlank()) Text(code, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             // Nog niet gekoppeld → enkel dan de koppelknop tonen (baas richt in).
             OutlinedButton(onPair, Modifier.fillMaxWidth().height(54.dp)) {
@@ -310,7 +314,7 @@ fun PairingScreen(
 
 @Preview(name = "Home", showBackground = true, widthDp = 420, heightDp = 900)
 @Composable
-private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", onPair = {}) } } }
+private fun PreviewHome() { MaterialTheme(colorScheme = Mv3dColors) { Surface(color = MaterialTheme.colorScheme.background) { HomeScreen("build 12", coupled = true, code = "C7K5RYC7", machineName = "Kraan 12", onPair = {}) } } }
 
 @Preview(name = "Koppelen", showBackground = true, widthDp = 420, heightDp = 1200)
 @Composable

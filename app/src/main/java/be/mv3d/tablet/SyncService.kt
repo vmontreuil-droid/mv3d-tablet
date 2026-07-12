@@ -34,6 +34,7 @@ class SyncService : Service() {
         const val INTERVAL_MS = 5_000L   // sneller commando's oppikken (scherm delen start/stop vlotter)
         @Volatile var running = false; private set
         @Volatile var lastStatus: String = "—"
+        @Volatile var machineName: String? = null
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -60,6 +61,7 @@ class SyncService : Service() {
         val listing = JSONArray().apply { tree.listFiles().forEach { f -> put(JSONObject().put("name", f.name ?: "").put("size", f.length()).put("dir", f.isDirectory)) } }
         val loc = lastLocation()
         val res = api.sync(listing, loc?.first, loc?.second, loc?.third)
+        res.name?.let { machineName = it }
 
         val done = ArrayList<String>()
         for (f in res.files) {

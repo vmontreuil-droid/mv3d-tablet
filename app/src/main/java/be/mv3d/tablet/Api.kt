@@ -13,7 +13,7 @@ data class Command(
     val id: String, val kind: String, val path: String?, val newPath: String?,
     val fileName: String?, val uploadUrl: String?, val downloadUrl: String?
 )
-data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val commands: List<Command>)
+data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val name: String?, val commands: List<Command>)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
 class Api(private val server: String, private val code: String) {
@@ -38,7 +38,7 @@ class Api(private val server: String, private val code: String) {
             o.optJSONArray("files")?.let { for (i in 0 until it.length()) { val f = it.getJSONObject(i); files.add(RemoteFile(f.optString("id"), f.optString("name"), f.optString("url"), f.optString("subfolder").ifEmpty { null })) } }
             val cmds = ArrayList<Command>()
             o.optJSONArray("commands")?.let { for (i in 0 until it.length()) { val c = it.getJSONObject(i); cmds.add(Command(c.optString("id"), c.optString("kind"), c.optString("path").ifEmpty { null }, c.optString("new_path").ifEmpty { null }, c.optString("file_name").ifEmpty { null }, c.optString("upload_url").ifEmpty { null }, c.optString("download_url").ifEmpty { null })) } }
-            return SyncResult(files, o.optString("guidance_system").ifEmpty { null }, cmds)
+            return SyncResult(files, o.optString("guidance_system").ifEmpty { null }, o.optString("name").ifEmpty { null }, cmds)
         }
     }
 

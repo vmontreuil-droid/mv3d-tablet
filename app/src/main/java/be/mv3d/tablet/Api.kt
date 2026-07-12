@@ -65,6 +65,14 @@ class Api(private val server: String, private val code: String) {
         http.newCall(req).execute().close()
     }
 
+    /** POST /api/machines/screen-status — meld de schermdeel-status/fout (voor diagnose in het portaal). */
+    fun screen(status: String) {
+        val body = JSONObject().put("connection_code", code).put("status", status)
+        val req = Request.Builder().url("$server/api/machines/screen-status")
+            .post(body.toString().toRequestBody(json)).build()
+        try { http.newCall(req).execute().close() } catch (_: Exception) {}
+    }
+
     /** Download bytes (signed URL). */
     fun download(url: String): ByteArray {
         http.newCall(Request.Builder().url(url).build()).execute().use { r ->

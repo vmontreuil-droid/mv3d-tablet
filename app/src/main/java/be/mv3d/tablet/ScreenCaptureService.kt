@@ -81,9 +81,14 @@ class ScreenCaptureService : Service() {
     }
 
     private suspend fun start(resultCode: Int, data: Intent) {
+        val code = prefs.code(); val srv = prefs.server()
+        val api = if (code.isNotBlank()) Api(srv, code) else null
+        fun report(s: String) { status = s; try { updateNotification(s) } catch (_: Exception) {}; api?.screen(s) }
         try {
+            report("opname aanvragen…")
             val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             val proj = mpm.getMediaProjection(resultCode, data)
+                ?: throw RuntimeException("getMediaProjection gaf null (toestemming?)")
             projection = proj
 
             val ht = HandlerThread("mv3d-capture").also { it.start() }
@@ -99,6 +104,7 @@ class ScreenCaptureService : Service() {
             val capW = (realW * scale).toInt().coerceAtLeast(2) and 1.inv()  // even
             val capH = (realH * scale).toInt().coerceAtLeast(2) and 1.inv()
             frameW = capW; frameH = capH
+            report("scherm opnemen ${capW}x${capH}…")
 
             val ir = ImageReader.newInstance(capW, capH, PixelFormat.RGBA_8888, 2)
             reader = ir
@@ -129,14 +135,15 @@ class ScreenCaptureService : Service() {
             )
 
             server = CaptureServer(WEB_PORT).also { it.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
+            report("tunnel opzetten (cloudflared)…")
 
             val url = startCloudflared()
-            tunnelUrl = url; status = "actief · $url"
-            updateNotification("Scherm delen actief")
-            val code = prefs.code()
-            if (code.isNotBlank()) Api(prefs.server(), code).tunnel(url, token)
+            tunnelUrl = url
+            report("tunnel melden…")
+            api?.tunnel(url, token)
+            report("actief · beeld beschikbaar")
         } catch (e: Exception) {
-            status = "fout: ${e.message}"; updateNotification(status)
+            report("fout: ${e.javaClass.simpleName}: ${e.message}")
             cleanup(); stopSelf()
         }
     }
@@ -154,7 +161,12 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    /** cloudflared starten (native lib) en de publieke URL uit de output plukken. */
+    /**
+     * cloudflared starten (native lib) en de publieke URL uit de output plukken.
+     * De output wordt op een aparte thread gelezen (readLine() kan blokkeren), zodat de
+     * 40s-deadline altijd afdwingbaar is. Bij mislukking gaat cloudflared's laatste output
+     * mee in de fout, zodat we op afstand zien WAAROM (rate-limit, netwerk, …).
+     */
     private fun startCloudflared(): String {
         val bin = File(applicationInfo.nativeLibraryDir, "libcloudflared.so")
         if (!bin.exists()) throw RuntimeException("cloudflared ontbreekt (libcloudflared.so)")
@@ -163,13 +175,30 @@ class ScreenCaptureService : Service() {
         ).redirectErrorStream(true).start()
         cloudflared = proc
         val rx = Regex("https://[a-z0-9]+(?:-[a-z0-9]+)+\\.trycloudflare\\.com")
-        val reader = BufferedReader(InputStreamReader(proc.inputStream))
-        val deadline = System.currentTimeMillis() + 30_000
-        var line: String?
-        while (reader.readLine().also { line = it } != null && System.currentTimeMillis() < deadline) {
-            rx.find(line ?: "")?.let { return it.value }
+        val found = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        val tail = StringBuilder()
+        val t = Thread {
+            try {
+                val reader = BufferedReader(InputStreamReader(proc.inputStream))
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val l = line ?: continue
+                    synchronized(tail) { tail.append(l).append('\n'); if (tail.length > 1500) tail.delete(0, tail.length - 1500) }
+                    val m = rx.find(l)
+                    if (m != null) { found.set(m.value); break }
+                }
+            } catch (_: Exception) {}
         }
-        throw RuntimeException("geen tunnel-URL van cloudflared")
+        t.isDaemon = true; t.start()
+        val deadline = System.currentTimeMillis() + 40_000
+        while (System.currentTimeMillis() < deadline) {
+            found.get()?.let { return it }
+            if (!proc.isAlive) break
+            Thread.sleep(300)
+        }
+        found.get()?.let { return it }
+        val out = synchronized(tail) { tail.toString().trim() }.takeLast(280)
+        throw RuntimeException("geen tunnel in 40s. cloudflared: ${out.ifBlank { "(geen output — binary/arch?)" }}")
     }
 
     private fun randomToken(): String {

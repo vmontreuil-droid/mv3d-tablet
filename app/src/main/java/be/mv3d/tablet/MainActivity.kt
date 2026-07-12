@@ -275,6 +275,7 @@ private fun ConverterSection() {
         "Topcon" to R.drawable.tile_topcon,
         "Leica" to R.drawable.tile_leica,
         "Trimble" to R.drawable.tile_trimble,
+        "CHCNAV" to R.drawable.tile_chcnav,
     )
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -24,6 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -170,11 +173,11 @@ class MainActivity : ComponentActivity() {
 // ── Herbruikbare stukjes ──
 @Composable
 private fun Logo(size: Int = 64) {
-    Surface(Modifier.size(size.dp), color = Gold, shape = RoundedCornerShape((size / 4).dp)) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Layers, contentDescription = null, tint = Color.White, modifier = Modifier.size((size * 0.55).dp))
-        }
-    }
+    Image(
+        painter = painterResource(id = R.mipmap.ic_launcher),
+        contentDescription = null,
+        modifier = Modifier.size(size.dp).shadow(6.dp, RoundedCornerShape((size * 0.22f).dp), clip = false),
+    )
 }
 
 @Composable
@@ -211,9 +214,9 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(Modifier.height(48.dp))
-        Logo(72)
-        Text("3DG-Manager", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Machinebesturing · werven · machines", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Logo(80)
+        Text("VM3D", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+        Text("Machinemanagement", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
 
         // Machinist doet niks — enkel de verbonden-status. De baas beheert alles vanaf
@@ -223,7 +226,10 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF43C98A), modifier = Modifier.size(18.dp))
                 Text("Verbonden met MV3D", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (!machineName.isNullOrBlank()) Text(machineName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Gold, textAlign = TextAlign.Center)
+            if (!machineName.isNullOrBlank()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.PrecisionManufacturing, contentDescription = null, tint = Gold, modifier = Modifier.size(28.dp))
+                Text(machineName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Gold)
+            }
             if (code.isNotBlank()) Text(code, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             // Nog niet gekoppeld → enkel dan de koppelknop tonen (baas richt in).
@@ -236,7 +242,7 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
         Spacer(Modifier.weight(1f))
         // Baas-gebaar: lang drukken op de voettekst opent de instellingen, óók als gekoppeld.
         Text(
-            "MV3D · $version",
+            "VM3D · $version",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onPair() }) },
@@ -264,7 +270,7 @@ fun PairingScreen(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Terug", tint = MaterialTheme.colorScheme.onSurface) }
             Logo(40)
-            Column { Text("MV3D", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Machine koppelen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column { Text("VM3D", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Machine koppelen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
 
         if (updateAvailable != null) {
@@ -307,8 +313,8 @@ fun PairingScreen(
 
         Text("Scherm delen wordt volledig door de baas vanaf het portaal gestart — de machinist hoeft hier niets te doen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        OutlinedButton(onOpenPortal, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("MV3D-portaal openen") }
-        Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        OutlinedButton(onOpenPortal, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("VM3D-portaal openen") }
+        Text("VM3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 

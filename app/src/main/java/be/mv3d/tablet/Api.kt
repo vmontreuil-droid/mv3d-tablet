@@ -65,6 +65,16 @@ class Api(private val server: String, private val code: String) {
         http.newCall(req).execute().close()
     }
 
+    /** POST /api/machines/screen-frame — upload één JPEG-frame, krijg de wachtende input terug. */
+    fun screenFrame(jpeg: ByteArray): JSONArray {
+        val req = Request.Builder().url("$server/api/machines/screen-frame?code=$code")
+            .post(jpeg.toRequestBody("image/jpeg".toMediaType())).build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) return JSONArray()
+            return JSONObject(r.body?.string() ?: "{}").optJSONArray("inputs") ?: JSONArray()
+        }
+    }
+
     /** POST /api/machines/screen-status — meld de schermdeel-status/fout (voor diagnose in het portaal). */
     fun screen(status: String) {
         val body = JSONObject().put("connection_code", code).put("status", status)

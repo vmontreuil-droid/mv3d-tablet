@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             convBusy = false
-                            res.onSuccess { convDone = true; convMsg = "Klaar: ${it.surfaces} oppervlak, ${it.lines} lijnen → ${it.folder}" }
+                            res.onSuccess { convDone = true; convMsg = "Klaar: ${it.surfaces} oppervlak, ${it.lines} lijnen → ${it.folder}. Sluit Unicontrol volledig af en start het opnieuw." }
                                 .onFailure { convMsg = "Fout: ${it.message}" }
                         }
                     }
@@ -216,11 +216,20 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
     }
 
-    /** Schrijft de geconverteerde bestanden in <Unicontrol>/Projects/<werf>/. */
+    /** Schrijft de geconverteerde bestanden in <Unicontrol>/Projects/<werf>/, ongeacht of
+     *  de gebruiker de map Unicontrol, Projects of een bovenliggende opslagmap koos. */
     private fun writeUnicontrolProject(uniTreeUri: Uri, werf: String, files: List<ConvOut>) {
         val root = DocumentFile.fromTreeUri(this, uniTreeUri) ?: throw RuntimeException("Unicontrol-map ongeldig")
-        val projects = root.findFile("Projects")?.takeIf { it.isDirectory } ?: root.createDirectory("Projects") ?: throw RuntimeException("Kan Projects-map niet maken")
-        val werfDir = projects.findFile(werf)?.takeIf { it.isDirectory } ?: projects.createDirectory(werf) ?: throw RuntimeException("Kan werfmap niet maken")
+        fun childDir(dir: DocumentFile, name: String): DocumentFile =
+            dir.findFile(name)?.takeIf { it.isDirectory } ?: dir.createDirectory(name) ?: throw RuntimeException("Kan map '$name' niet maken")
+        // vind of maak de Projects-map
+        val projects: DocumentFile = when {
+            root.name.equals("Projects", true) -> root
+            root.findFile("Projects")?.isDirectory == true -> root.findFile("Projects")!!
+            root.findFile("Unicontrol")?.isDirectory == true -> childDir(root.findFile("Unicontrol")!!, "Projects")
+            else -> childDir(root, "Projects")
+        }
+        val werfDir = childDir(projects, werf)
         for (f in files) {
             werfDir.findFile(f.path)?.delete()
             val doc = werfDir.createFile("application/octet-stream", f.path) ?: throw RuntimeException("Kan ${f.path} niet aanmaken")
@@ -233,7 +242,7 @@ class MainActivity : ComponentActivity() {
         val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val ri = packageManager.queryIntentActivities(main, 0).firstOrNull { it.activityInfo.packageName.contains("unicontrol", ignoreCase = true) }
         val intent = ri?.let { packageManager.getLaunchIntentForPackage(it.activityInfo.packageName) }
-        if (intent != null) startActivity(intent)
+        if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK); startActivity(intent) }
         else Toast.makeText(this, "Unicontrol-app niet gevonden op deze tablet", Toast.LENGTH_LONG).show()
     }
 
@@ -387,7 +396,10 @@ private fun ConverterScreen(
             Text(if (busy) "Converteren…" else "Converteren & naar Unicontrol")
         }
         if (message != null) Text(message, style = MaterialTheme.typography.bodyMedium, color = if (message.startsWith("Fout")) MaterialTheme.colorScheme.error else Color(0xFF43C98A))
-        if (done) Button(onLaunchUni, Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Start Unicontrol") }
+        if (done) {
+            Text("Tip: sluit Unicontrol eerst volledig af (uit recente apps vegen) — anders ziet het het nieuwe project niet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onLaunchUni, Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Start Unicontrol") }
+        }
     }
 }
 

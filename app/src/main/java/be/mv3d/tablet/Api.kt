@@ -65,6 +65,18 @@ class Api(private val server: String, private val code: String) {
         http.newCall(req).execute().close()
     }
 
+    /** GET /api/realtime-config — Supabase-URL + anon-key voor het live websocket-kanaal. */
+    fun realtimeConfig(): Pair<String, String>? {
+        return try {
+            http.newCall(Request.Builder().url("$server/api/realtime-config").build()).execute().use { r ->
+                if (!r.isSuccessful) return null
+                val o = JSONObject(r.body?.string() ?: "{}")
+                val url = o.optString("url"); val key = o.optString("anon_key")
+                if (url.isBlank() || key.isBlank()) null else url to key
+            }
+        } catch (_: Exception) { null }
+    }
+
     /** POST /api/machines/screen-frame — upload één JPEG-frame, krijg de wachtende input terug. */
     fun screenFrame(jpeg: ByteArray): JSONArray {
         val req = Request.Builder().url("$server/api/machines/screen-frame?code=$code")

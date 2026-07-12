@@ -46,8 +46,8 @@ class ScreenCaptureService : Service() {
 
     companion object {
         const val CHANNEL = "mv3d_screen"
-        const val MAX_WIDTH = 820
-        const val FRAME_MS = 350L
+        const val MAX_WIDTH = 900
+        const val FRAME_MS = 120L   // sneller: over de websocket is versturen goedkoop
         const val EXTRA_RESULT = "result_code"
         const val EXTRA_DATA = "result_data"
         @Volatile var status: String = "uit"
@@ -108,7 +108,7 @@ class ScreenCaptureService : Service() {
                     bmp.copyPixelsFromBuffer(plane.buffer)
                     if (bmpW != capW) { val c = Bitmap.createBitmap(bmp, 0, 0, capW, capH); bmp.recycle(); bmp = c }
                     val bos = ByteArrayOutputStream()
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 50, bos)
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 60, bos)
                     latestJpeg = bos.toByteArray()
                     bmp.recycle()
                 } catch (_: Exception) {
@@ -121,26 +121,50 @@ class ScreenCaptureService : Service() {
                 ir.surface, null, handler
             )
 
+            // live websocket-kanaal (Supabase Realtime) opzetten; input komt hierlangs binnen.
+            var rt: RealtimeClient? = null
+            try {
+                api?.realtimeConfig()?.let { (url, key) ->
+                    rt = RealtimeClient(url, key, "screen-${prefs.code()}") { o -> applyInput(o) }.also { it.connect() }
+                }
+            } catch (_: Exception) {}
+
             streaming = true
             report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")
             var lastReport = 0L
             var wasStreaming = true
+            var announcedRt = false
+            var lastSent: ByteArray? = null
+            var lastBeat = System.currentTimeMillis()
             while (scope.isActive && active && api != null) {
+                val nowT = System.currentTimeMillis()
                 if (streaming) {
                     val jpg = latestJpeg
-                    if (jpg != null) {
-                        try {
-                            val inputs = api.screenFrame(jpg)
-                            for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
-                        } catch (e: Exception) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastReport > 5000) { lastReport = now; report("streamfout: ${e.message}") }
+                    if (jpg != null && jpg !== lastSent) {   // dedupe: enkel nieuwe frames
+                        val r = rt
+                        if (r != null && r.joined) {
+                            val b64 = android.util.Base64.encodeToString(jpg, android.util.Base64.NO_WRAP)
+                            if (r.sendFrame(b64)) {
+                                lastSent = jpg
+                                if (!announcedRt) { announcedRt = true; report("actief · live" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken") }
+                            }
+                        } else {
+                            // terugval: HTTP (trager, maar werkt zonder websocket); input komt in het antwoord
+                            try {
+                                val inputs = api.screenFrame(jpg)
+                                for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
+                                lastSent = jpg
+                            } catch (e: Exception) {
+                                if (nowT - lastReport > 5000) { lastReport = nowT; report("streamfout: ${e.message}") }
+                            }
                         }
                     }
                 }
+                if (nowT - lastBeat > 25000) { lastBeat = nowT; try { rt?.heartbeat() } catch (_: Exception) {} }
                 if (streaming != wasStreaming) { wasStreaming = streaming; report(if (streaming) "actief · hervat" else "gepauzeerd (klaar om te hervatten)") }
                 delay(FRAME_MS)
             }
+            try { rt?.close() } catch (_: Exception) {}
         } catch (e: Exception) {
             report("fout: ${e.javaClass.simpleName}: ${e.message}")
             cleanup(); stopSelf()

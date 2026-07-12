@@ -135,17 +135,19 @@ class ScreenCaptureService : Service() {
             var wasStreaming = true
             var announcedRt = false
             var lastSent: ByteArray? = null
+            var lastFrameSentAt = 0L
             var lastBeat = System.currentTimeMillis()
             while (scope.isActive && active && api != null) {
                 val nowT = System.currentTimeMillis()
                 if (streaming) {
                     val jpg = latestJpeg
-                    if (jpg != null && jpg !== lastSent) {   // dedupe: enkel nieuwe frames
+                    // nieuw frame OF elke ~1s opnieuw (stilstaand scherm / net-verbonden viewer krijgt altijd beeld)
+                    if (jpg != null && (jpg !== lastSent || nowT - lastFrameSentAt >= 1000)) {
                         val r = rt
                         if (r != null && r.joined) {
                             val b64 = android.util.Base64.encodeToString(jpg, android.util.Base64.NO_WRAP)
                             if (r.sendFrame(b64)) {
-                                lastSent = jpg
+                                lastSent = jpg; lastFrameSentAt = nowT
                                 if (!announcedRt) { announcedRt = true; report("actief · live" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken") }
                             }
                         } else {
@@ -153,7 +155,7 @@ class ScreenCaptureService : Service() {
                             try {
                                 val inputs = api.screenFrame(jpg)
                                 for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
-                                lastSent = jpg
+                                lastSent = jpg; lastFrameSentAt = nowT
                             } catch (e: Exception) {
                                 if (nowT - lastReport > 5000) { lastReport = nowT; report("streamfout: ${e.message}") }
                             }
@@ -161,7 +163,7 @@ class ScreenCaptureService : Service() {
                     }
                 }
                 if (nowT - lastBeat > 25000) { lastBeat = nowT; try { rt?.heartbeat() } catch (_: Exception) {} }
-                if (streaming != wasStreaming) { wasStreaming = streaming; report(if (streaming) "actief · hervat" else "gepauzeerd (klaar om te hervatten)") }
+                if (streaming != wasStreaming) { wasStreaming = streaming; if (streaming) lastSent = null; report(if (streaming) "actief · hervat" else "gepauzeerd (klaar om te hervatten)") }
                 delay(FRAME_MS)
             }
             try { rt?.close() } catch (_: Exception) {}

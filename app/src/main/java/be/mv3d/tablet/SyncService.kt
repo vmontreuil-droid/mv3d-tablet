@@ -76,7 +76,15 @@ class SyncService : Service() {
                     "push" -> { if (c.downloadUrl != null) writeIntoTree(tree, null, c.fileName ?: "bestand", api.download(c.downloadUrl)); results.add(c.id to null) }
                     "pull" -> { val src = findInTree(tree, c.path); if (src != null && c.uploadUrl != null) api.upload(c.uploadUrl, readDoc(src)); results.add(c.id to null) }
                     "screen" -> { // scherm-delen op afstand aan/uit (baas stuurt het vanaf het portaal)
-                        if (c.path == "on") requestScreenShare() else stopService(Intent(this, ScreenCaptureService::class.java))
+                        if (c.path == "on") {
+                            // al toestemming gegeven deze boot? gewoon hervatten — geen dialoog meer.
+                            if (ScreenCaptureService.active) ScreenCaptureService.streaming = true
+                            else requestScreenShare()
+                        } else {
+                            // pauzeren maar de MediaProjection levend houden → volgende start is instant.
+                            if (ScreenCaptureService.active) ScreenCaptureService.streaming = false
+                            else stopService(Intent(this, ScreenCaptureService::class.java))
+                        }
                         results.add(c.id to null)
                     }
                     else -> results.add(c.id to "onbekend commando ${c.kind}")

@@ -54,14 +54,15 @@ class ScreenCaptureService : Service() {
         @Volatile var latestJpeg: ByteArray? = null
         @Volatile var frameW = 0
         @Volatile var frameH = 0
-        @Volatile var active = false
+        @Volatile var active = false      // service draait + MediaProjection is levend
+        @Volatile var streaming = true    // frames effectief versturen (pauze = false, hergebruikt de toestemming)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundCompat("Scherm delen wordt gestart…")
-        if (active) return START_STICKY
+        if (active) { streaming = true; return START_STICKY }   // al bezig → gewoon hervatten (geen nieuwe toestemming)
         val resultCode = intent?.getIntExtra(EXTRA_RESULT, 0) ?: 0
         val data: Intent? = intent?.getParcelableExtra(EXTRA_DATA)
         if (resultCode == 0 || data == null) { status = "geen toestemming"; stopSelf(); return START_NOT_STICKY }
@@ -120,21 +121,24 @@ class ScreenCaptureService : Service() {
                 ir.surface, null, handler
             )
 
-            report("beeld streamen via mv3d.be…")
-            var announced = false
+            streaming = true
+            report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")
             var lastReport = 0L
+            var wasStreaming = true
             while (scope.isActive && active && api != null) {
-                val jpg = latestJpeg
-                if (jpg != null) {
-                    try {
-                        val inputs = api.screenFrame(jpg)
-                        for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
-                        if (!announced) { announced = true; report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken") }
-                    } catch (e: Exception) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastReport > 5000) { lastReport = now; report("streamfout: ${e.message}") }
+                if (streaming) {
+                    val jpg = latestJpeg
+                    if (jpg != null) {
+                        try {
+                            val inputs = api.screenFrame(jpg)
+                            for (i in 0 until inputs.length()) applyInput(inputs.getJSONObject(i))
+                        } catch (e: Exception) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastReport > 5000) { lastReport = now; report("streamfout: ${e.message}") }
+                        }
                     }
                 }
+                if (streaming != wasStreaming) { wasStreaming = streaming; report(if (streaming) "actief · hervat" else "gepauzeerd (klaar om te hervatten)") }
                 delay(FRAME_MS)
             }
         } catch (e: Exception) {

@@ -3,6 +3,7 @@ package be.mv3d.tablet
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.net.Uri
@@ -74,9 +75,8 @@ class SyncService : Service() {
                     "move" -> { val src = findInTree(tree, c.path); if (src != null && c.newPath != null) { writeIntoTree(tree, null, c.newPath.substringAfterLast('/'), readDoc(src)); src.delete() }; results.add(c.id to null) }
                     "push" -> { if (c.downloadUrl != null) writeIntoTree(tree, null, c.fileName ?: "bestand", api.download(c.downloadUrl)); results.add(c.id to null) }
                     "pull" -> { val src = findInTree(tree, c.path); if (src != null && c.uploadUrl != null) api.upload(c.uploadUrl, readDoc(src)); results.add(c.id to null) }
-                    "screen" -> { // scherm-delen op afstand aan/uit (baas stuurt het; machinist doet niets)
-                        val i = Intent(this, RemoteService::class.java)
-                        if (c.path == "on") { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i) } else stopService(i)
+                    "screen" -> { // scherm-delen op afstand aan/uit (baas stuurt het vanaf het portaal)
+                        if (c.path == "on") requestScreenShare() else stopService(Intent(this, ScreenCaptureService::class.java))
                         results.add(c.id to null)
                     }
                     else -> results.add(c.id to "onbekend commando ${c.kind}")
@@ -86,6 +86,31 @@ class SyncService : Service() {
 
         if (done.isNotEmpty() || results.isNotEmpty()) api.confirm(done, results)
         lastStatus = "ok · ${done.size} bestand(en) · ${res.commands.size} cmd" + (res.guidance?.let { " · $it" } ?: "")
+    }
+
+    /**
+     * 'screen on' vanaf het portaal → MediaProjection-toestemming vragen. Android verplicht dat dit
+     * vanuit een Activity komt, dus we tonen een volledig-scherm-melding ("De baas wil je scherm
+     * zien — tik om te delen"). Op veel toestellen opent die meteen; anders tikt de machinist één keer.
+     */
+    private fun requestScreenShare() {
+        if (ScreenCaptureService.active) return
+        val open = Intent(this, ProjectionRequestActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        try { startActivity(open) } catch (_: Exception) {}
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        val pi = PendingIntent.getActivity(this, 0, open, flags)
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) nm.createNotificationChannel(NotificationChannel("mv3d_screen_req", "MV3D scherm-verzoek", NotificationManager.IMPORTANCE_HIGH))
+        val n = Notification.Builder(this, "mv3d_screen_req")
+            .setContentTitle("MV3D — scherm delen")
+            .setContentText("De baas wil je scherm zien. Tik om te delen.")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .setFullScreenIntent(pi, true)
+            .build()
+        nm.notify(9, n)
     }
 
     // ── SAF helpers ──

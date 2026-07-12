@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">VM3D</string>
-    <string name="remote_input_desc">Laat de baas de kraantablet op afstand bedienen (tikken en vegen) vanaf het VM3D-portaal. Eenmalig aanzetten; verder werkt alles automatisch.</string>
+    <string name="app_name">MV3D</string>
+    <string name="remote_input_desc">Laat de baas de kraantablet op afstand bedienen (tikken en vegen) vanaf het MV3D-portaal. Eenmalig aanzetten; verder werkt alles automatisch.</string>
 </resources>

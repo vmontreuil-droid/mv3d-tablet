@@ -31,7 +31,7 @@ class SyncService : Service() {
 
     companion object {
         const val CHANNEL = "mv3d_sync"
-        const val INTERVAL_MS = 15_000L
+        const val INTERVAL_MS = 5_000L   // sneller commando's oppikken (scherm delen start/stop vlotter)
         @Volatile var running = false; private set
         @Volatile var lastStatus: String = "—"
     }

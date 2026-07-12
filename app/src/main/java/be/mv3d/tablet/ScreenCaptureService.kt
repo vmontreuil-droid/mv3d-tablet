@@ -80,7 +80,7 @@ class ScreenCaptureService : Service() {
         return START_STICKY
     }
 
-    private fun start(resultCode: Int, data: Intent) {
+    private suspend fun start(resultCode: Int, data: Intent) {
         try {
             val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             val proj = mpm.getMediaProjection(resultCode, data)

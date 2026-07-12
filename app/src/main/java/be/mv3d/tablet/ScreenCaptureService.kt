@@ -123,11 +123,15 @@ class ScreenCaptureService : Service() {
 
             // live websocket-kanaal (Supabase Realtime) opzetten; input komt hierlangs binnen.
             var rt: RealtimeClient? = null
-            try {
-                api?.realtimeConfig()?.let { (url, key) ->
-                    rt = RealtimeClient(url, key, "screen-${prefs.code()}") { o -> applyInput(o) }.also { it.connect() }
-                }
-            } catch (_: Exception) {}
+            val a = api
+            if (a != null) try {
+                val cfg = a.realtimeConfig()
+                if (cfg == null) a.screen("rt: geen config")
+                else rt = RealtimeClient(cfg.first, cfg.second, "screen-${prefs.code()}",
+                    onInput = { o -> applyInput(o) },
+                    onStatus = { s -> a.screen("rt: $s") }
+                ).also { it.connect() }
+            } catch (e: Exception) { a.screen("rt: uitzondering: ${e.message}") }
 
             streaming = true
             report("actief · beeld beschikbaar" + if (RemoteInputService.enabled) " · bediening aan" else " · alleen kijken")

@@ -21,6 +21,7 @@ class RealtimeClient(
     private val anonKey: String,
     channel: String,                         // bv. "screen-L39YZ3K4"
     private val onInput: (JSONObject) -> Unit,
+    private val onStatus: ((String) -> Unit)? = null,
 ) {
     private val http = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
@@ -51,23 +52,35 @@ class RealtimeClient(
                         .put("access_token", anonKey))
                     .put("ref", joinRef).put("join_ref", joinRef)
                 webSocket.send(join.toString())
+                onStatus?.invoke("ws-open, join gestuurd")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val o = JSONObject(text)
                     when (o.optString("event")) {
-                        "phx_reply" -> if (o.optJSONObject("payload")?.optString("status") == "ok") joined = true
+                        "phx_reply" -> {
+                            val pl = o.optJSONObject("payload")
+                            if (!joined) {
+                                if (pl?.optString("status") == "ok") { joined = true; onStatus?.invoke("joined ✓") }
+                                else onStatus?.invoke("join-fout: " + (pl?.toString()?.take(140) ?: text.take(140)))
+                            }
+                        }
                         "broadcast" -> {
                             val p = o.optJSONObject("payload") ?: return
                             if (p.optString("event") == "input") p.optJSONObject("payload")?.let(onInput)
                         }
+                        "phx_error" -> onStatus?.invoke("phx_error: " + text.take(140))
                     }
                 } catch (_: Exception) {}
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { joined = false }
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { joined = false }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                joined = false; onStatus?.invoke("ws-fout: ${t.javaClass.simpleName}: ${t.message}")
+            }
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                joined = false; onStatus?.invoke("ws dicht: $code $reason")
+            }
         })
     }
 

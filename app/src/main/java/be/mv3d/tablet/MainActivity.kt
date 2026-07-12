@@ -271,10 +271,10 @@ fun HomeScreen(version: String, coupled: Boolean, code: String, machineName: Str
 private fun ConverterSection() {
     val ctx = LocalContext.current
     val brands = listOf(
-        "Unicontrol" to Color(0xFF38BDF8),
-        "Topcon" to Color(0xFFF87171),
-        "Leica" to Color(0xFF34D399),
-        "Trimble" to Color(0xFF60A5FA),
+        "Unicontrol" to R.drawable.tile_unicontrol,
+        "Topcon" to R.drawable.tile_topcon,
+        "Leica" to R.drawable.tile_leica,
+        "Trimble" to R.drawable.tile_trimble,
     )
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -282,17 +282,16 @@ private fun ConverterSection() {
             Text("BESTANDSCONVERTOR", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
         }
         for (row in brands.chunked(2)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for ((name, col) in row) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier.weight(1f).height(60.dp).clickable { Toast.makeText(ctx, "Binnenkort: $name-bestanden converteren", Toast.LENGTH_SHORT).show() },
-                    ) {
-                        Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.size(11.dp).clip(CircleShape).background(col))
-                            Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                for ((name, res) in row) {
+                    Image(
+                        painter = painterResource(id = res),
+                        contentDescription = name,
+                        modifier = Modifier.weight(1f).aspectRatio(1f)
+                            .shadow(4.dp, RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable { Toast.makeText(ctx, "Binnenkort: $name-bestanden converteren", Toast.LENGTH_SHORT).show() },
+                    )
                 }
             }
         }

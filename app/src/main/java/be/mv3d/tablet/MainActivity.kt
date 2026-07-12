@@ -281,18 +281,16 @@ private fun ConverterSection() {
             Icon(Icons.Outlined.SwapHoriz, contentDescription = null, tint = Gold, modifier = Modifier.size(18.dp))
             Text("BESTANDSCONVERTOR", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
         }
-        for (row in brands.chunked(2)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for ((name, res) in row) {
-                    Image(
-                        painter = painterResource(id = res),
-                        contentDescription = name,
-                        modifier = Modifier.weight(1f).aspectRatio(1f)
-                            .shadow(4.dp, RoundedCornerShape(18.dp))
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable { Toast.makeText(ctx, "Binnenkort: $name-bestanden converteren", Toast.LENGTH_SHORT).show() },
-                    )
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((name, res) in brands) {
+                Image(
+                    painter = painterResource(id = res),
+                    contentDescription = name,
+                    modifier = Modifier.weight(1f).aspectRatio(1f)
+                        .shadow(3.dp, RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { Toast.makeText(ctx, "Binnenkort: $name-bestanden converteren", Toast.LENGTH_SHORT).show() },
+                )
             }
         }
     }

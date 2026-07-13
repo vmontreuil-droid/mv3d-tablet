@@ -83,6 +83,7 @@ fun DashboardScreen(
     val (gsFg, gsBg) = gsColors(gs)
     val werven = ov?.werven ?: emptyList()
     var navOpen by remember { mutableStateOf(true) }
+    var view by remember { mutableStateOf("kraan") }  // "kraan" | "werven"
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -93,8 +94,8 @@ fun DashboardScreen(
                     Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(34.dp))
                     Column { Text("MV3D", color = DRed, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("Machineapp", color = DMuted, fontSize = 11.sp) }
                 }
-                NavItem(Icons.Outlined.Agriculture, "Mijn kraan", true) {}
-                NavItem(Icons.Outlined.Foundation, "Werven", false) {}
+                NavItem(Icons.Outlined.Agriculture, "Mijn kraan", view == "kraan") { view = "kraan" }
+                NavItem(Icons.Outlined.Foundation, "Werven", view == "werven") { view = "werven" }
                 NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
                 Spacer(Modifier.weight(1f))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(12.dp)) {
@@ -116,9 +117,9 @@ fun DashboardScreen(
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
-                    Text("MIJN KRAAN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text(if (view == "kraan") "MIJN KRAAN" else "WERVEN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                if (view == "kraan") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     // machinekaart
                     Card(Modifier.width(320.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                         Column(Modifier.padding(22.dp)) {
@@ -156,8 +157,7 @@ fun DashboardScreen(
                 }
 
                 // ── WERVEN ──
-                if (werven.isNotEmpty()) {
-                    Text("WERVEN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                if (view == "werven" && werven.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                       werven.chunked(3).forEach { rij ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

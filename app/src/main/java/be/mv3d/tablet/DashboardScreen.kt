@@ -122,6 +122,16 @@ fun DashboardScreen(
                     Text("Werven", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
                     Text(werven.size.toString(), color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
+                // QR-code van de kraancode (scannen om te koppelen)
+                val qr = remember(code) { qrBitmap(code, 240) }
+                if (qr != null) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White).padding(8.dp)) {
+                            Image(qr, "QR-code kraancode", Modifier.size(132.dp))
+                        }
+                        Text("Scan om te koppelen", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                    }
+                }
                 NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
                 NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
             }

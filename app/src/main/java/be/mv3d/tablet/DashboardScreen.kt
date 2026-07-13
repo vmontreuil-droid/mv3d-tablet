@@ -84,6 +84,7 @@ fun DashboardScreen(
     val werven = ov?.werven ?: emptyList()
     var navOpen by remember { mutableStateOf(false) }  // menu ingeklapt bij opstart
     var view by remember { mutableStateOf("kraan") }  // "kraan" | "werven"
+    var selectedWerf by remember { mutableStateOf<String?>(null) }
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -129,8 +130,11 @@ fun DashboardScreen(
                     }
                     Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 }
+                val sel = selectedWerf
+                if (sel != null) WerfDetail(werven.firstOrNull { it.name == sel }, sel, name, ov?.lat, ov?.lon) { selectedWerf = null }
+                else {
                 // grote overzichtskaart bovenaan (enkel in Werven-view) — volledige breedte, met de werven erop
-                if (view == "werven") Card(Modifier.fillMaxWidth().height(360.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                if (view == "werven") Card(Modifier.fillMaxWidth().height(400.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                     Column {
                         Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
@@ -141,7 +145,7 @@ fun DashboardScreen(
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)); Spacer(Modifier.size(4.dp))
                             Text("Werven", color = DMuted, fontSize = 11.sp)
                         }
-                        OverviewMap(server, code, ov?.lat, ov?.lon, werven)
+                        PortalMap(name, ov?.lat, ov?.lon, werven, onOpenWerf = { selectedWerf = it }, modifier = Modifier.fillMaxSize())
                     }
                 }
 
@@ -172,7 +176,7 @@ fun DashboardScreen(
                       werven.chunked(3).forEach { rij ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         for (w in rij) {
-                            Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                            Card(Modifier.weight(1f).clickable { selectedWerf = w.name }, colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                                 Column {
                                     Box(Modifier.fillMaxWidth().height(108.dp), contentAlignment = Alignment.Center) {
                                         val wb = werfBmps[w.name]
@@ -201,8 +205,55 @@ fun DashboardScreen(
 
                 // (Bestandsconvertor komt later terug onder de Convertor-tab / bij nieuwe werf.)
                 Spacer(Modifier.height(8.dp))
+                }
             }
         }
+    }
+}
+
+/** Werf-detail: kaart + de projecten (ontwerpen) van deze werf. */
+@Composable
+private fun WerfDetail(w: Werf?, werfName: String, machineName: String, mLat: Double?, mLon: Double?, onBack: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { onBack() }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.ChevronLeft, "Terug", tint = DInk, modifier = Modifier.size(22.dp))
+            }
+            Column {
+                Text("WERF", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Text(werfName, color = DInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        if (w == null) { Text("Werf niet gevonden", color = DMuted, fontSize = 14.sp); return@Column }
+        if (w.address.isNotBlank()) Text(w.address, color = DSoft, fontSize = 13.sp)
+
+        // kaart van deze werf (+ de kraan)
+        Card(Modifier.fillMaxWidth().height(300.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+            PortalMap(machineName, mLat, mLon, listOf(w), onOpenWerf = {}, modifier = Modifier.fillMaxSize())
+        }
+
+        // projecten (ontwerpen) in de werf
+        Text("PROJECTEN · ${w.projecten.size}", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        if (w.projecten.isEmpty()) {
+            Text("Nog geen projecten in deze werf.", color = DMuted, fontSize = 13.sp)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (p in w.projecten) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)).background(DRedTint), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Description, null, tint = DRed, modifier = Modifier.size(20.dp))
+                            }
+                            Text(p.name, color = DInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Box(Modifier.clip(RoundedCornerShape(6.dp)).background(DPanel2).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                                Text(p.type, color = DSoft, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
     }
 }
 

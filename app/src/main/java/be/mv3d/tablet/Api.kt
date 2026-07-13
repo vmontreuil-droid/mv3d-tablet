@@ -18,7 +18,8 @@ data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val na
 /** Eén geconverteerd bestand. dir = "project" (→ Projects/<werf>/) of "coordsys" (→ CoordinateSystems/). */
 data class ConvOut(val path: String, val text: String, val dir: String = "project")
 data class ConvResult(val werf: String, val folder: String, val surfaces: Int, val lines: Int, val files: List<ConvOut>)
-data class Werf(val name: String, val address: String, val lat: Double?, val lon: Double?, val files: Int, val active: Boolean)
+data class Proj(val name: String, val type: String)
+data class Werf(val name: String, val address: String, val lat: Double?, val lon: Double?, val files: Int, val active: Boolean, val projecten: List<Proj> = emptyList())
 data class Overview(val name: String, val guidance: String, val code: String, val lat: Double?, val lon: Double?, val werven: List<Werf>)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
@@ -124,7 +125,9 @@ class Api(private val server: String, private val code: String) {
             val werven = ArrayList<Werf>()
             o.optJSONArray("werven")?.let { arr -> for (i in 0 until arr.length()) { val w = arr.getJSONObject(i)
                 fun wd(k: String): Double? = if (w.isNull(k)) null else w.optDouble(k).let { if (it.isNaN()) null else it }
-                werven.add(Werf(w.optString("name"), w.optString("address"), wd("lat"), wd("lon"), w.optInt("files"), w.optBoolean("active"))) } }
+                val projs = ArrayList<Proj>()
+                w.optJSONArray("projecten")?.let { pa -> for (j in 0 until pa.length()) { val p = pa.getJSONObject(j); projs.add(Proj(p.optString("name"), p.optString("type"))) } }
+                werven.add(Werf(w.optString("name"), w.optString("address"), wd("lat"), wd("lon"), w.optInt("files"), w.optBoolean("active"), projs)) } }
             return Overview(o.optString("name"), o.optString("guidance"), o.optString("code"), dbl("lat"), dbl("lon"), werven)
         }
     }

@@ -37,17 +37,17 @@ private data class Lg(
 private val I18N = mapOf(
     "nl" to Lg("MV3D · Machinebeheer", "Machineomgeving", "Kraantablet", "Aanmelden",
         "Meld je aan met je MV3D-account om je werven en machines te beheren.",
-        "E-mail & wachtwoord", "Toegangscode", "E-mail", "Wachtwoord", "Toegangscode", "Inloggen",
+        "E-mail", "Code", "E-mail", "Wachtwoord", "Toegangscode", "Inloggen",
         "MV3D-Manager · machineomgeving", "naam@bedrijf.be", "Je wachtwoord", "BV. K7F3A92X",
         "Aanmelden mislukt — controleer je gegevens."),
     "fr" to Lg("MV3D · Gestion des machines", "Environnement machine", "Tablette grue", "Se connecter",
         "Connectez-vous avec votre compte MV3D pour gérer vos chantiers et machines.",
-        "E-mail & mot de passe", "Code d'accès", "E-mail", "Mot de passe", "Code d'accès", "Connexion",
+        "E-mail", "Code", "E-mail", "Mot de passe", "Code d'accès", "Connexion",
         "MV3D-Manager · environnement machine", "nom@entreprise.be", "Votre mot de passe", "EX. K7F3A92X",
         "Échec de connexion — vérifiez vos informations."),
     "en" to Lg("MV3D · Machine management", "Machine environment", "Crane tablet", "Sign in",
         "Sign in with your MV3D account to manage your sites and machines.",
-        "Email & password", "Access code", "Email", "Password", "Access code", "Sign in",
+        "Email", "Code", "Email", "Password", "Access code", "Sign in",
         "MV3D-Manager · machine environment", "name@company.com", "Your password", "E.G. K7F3A92X",
         "Sign-in failed — check your details."),
 )
@@ -91,16 +91,17 @@ fun LoginScreen(
                         Text(t.heading, color = LInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                         Text(t.lead, color = LMuted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp, bottom = 22.dp))
 
-                        // segment
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LSurface).padding(4.dp)) {
+                        // segment — onderstreepte tabs (geen kaders)
+                        Row(Modifier.fillMaxWidth()) {
                             for ((id, label) in listOf("email" to t.segEmail, "code" to t.segCode)) {
                                 val on = mode == id
-                                Box(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (on) LPanel else Color.Transparent).clickable { mode = id }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                    Text(label, color = if (on) LInk else LMuted, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(6.dp)).clickable { mode = id }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(label, color = if (on) Red else LMuted, fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(bottom = 9.dp))
+                                    Box(Modifier.fillMaxWidth().height(2.dp).background(if (on) Red else LLine))
                                 }
                             }
                         }
-                        Spacer(Modifier.height(18.dp))
+                        Spacer(Modifier.height(22.dp))
 
                         if (mode == "email") {
                             Field(t.email, email, { email = it }, t.emailPh, KeyboardType.Email)
@@ -143,7 +144,7 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit, ph: 
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Red, unfocusedBorderColor = LLine,
-                focusedContainerColor = LSurface, unfocusedContainerColor = LSurface,
+                focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                 cursorColor = Red,
             ),
             modifier = Modifier.fillMaxWidth(),

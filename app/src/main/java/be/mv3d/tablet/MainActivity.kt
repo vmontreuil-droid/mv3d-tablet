@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
 
                 // ── Login (MV3D-account) ──
                 val authToken by prefs.authFlow.collectAsState(initial = "")
+                val authEmail by prefs.authEmailFlow.collectAsState(initial = "")
                 val storedLang by prefs.langFlow.collectAsState(initial = "")
                 val lang = storedLang.ifBlank { java.util.Locale.getDefault().language.let { if (it in listOf("nl", "fr", "en")) it else "nl" } }
                 var loginBusy by remember { mutableStateOf(false) }
@@ -217,6 +218,8 @@ class MainActivity : ComponentActivity() {
                             onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
                             onStopSync = { syncStarting = false; stopService(Intent(this@MainActivity, SyncService::class.java)) },
                             codeField = codeField,
+                            authEmail = authEmail,
+                            onLogout = { scope.launch { prefs.clearAuth() } },
                         )
                     }
                 }
@@ -485,6 +488,7 @@ fun PairingScreen(
     syncBusy: Boolean = false, version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
     codeField: String = code,
+    authEmail: String = "", onLogout: () -> Unit = {},
 ) {
     val green = Color(0xFF43C98A)
     Column(
@@ -538,6 +542,11 @@ fun PairingScreen(
         Text("Scherm delen wordt volledig door de baas vanaf het portaal gestart — de machinist hoeft hier niets te doen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         OutlinedButton(onOpenPortal, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("MV3D-portaal openen") }
+
+        SectionCard(Icons.Outlined.AccountCircle, "Account") {
+            Text(if (authEmail.isNotBlank()) "Ingelogd als $authEmail" else "Niet ingelogd (overgeslagen)", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onLogout, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Logout, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Uitloggen") }
+        }
         Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }

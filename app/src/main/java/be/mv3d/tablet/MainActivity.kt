@@ -174,9 +174,10 @@ class MainActivity : ComponentActivity() {
                 val doCodeLogin: (String) -> Unit = { c ->
                     loginBusy = true; loginError = null
                     scope.launch {
-                        val res = withContext(Dispatchers.IO) { runCatching { Api(prefs.server(), "").loginCode(c) }.getOrNull() }
+                        val cc = c.trim().uppercase()
+                        val ok = cc.isNotBlank() && withContext(Dispatchers.IO) { runCatching { Api(prefs.server(), cc).verifyCode() }.getOrDefault(false) }
                         loginBusy = false
-                        if (res != null) prefs.setAuth(res.first, res.second) else loginError = loginErrorText(lang)
+                        if (ok) { prefs.setCode(cc); prefs.setAuth("crane:$cc", cc) } else loginError = loginErrorText(lang)
                     }
                 }
 

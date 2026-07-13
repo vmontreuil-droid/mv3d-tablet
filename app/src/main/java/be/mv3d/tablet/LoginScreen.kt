@@ -1,6 +1,7 @@
 package be.mv3d.tablet
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -37,17 +39,17 @@ private data class Lg(
 private val I18N = mapOf(
     "nl" to Lg("MV3D · Machinebeheer", "Machineomgeving", "Kraantablet", "Aanmelden",
         "Meld je aan met je MV3D-account om je werven en machines te beheren.",
-        "E-mail", "Code", "E-mail", "Wachtwoord", "Toegangscode", "Inloggen",
+        "E-mail", "Kraancode", "E-mail", "Wachtwoord", "Kraancode", "Inloggen",
         "MV3D-Manager · machineomgeving", "naam@bedrijf.be", "Je wachtwoord", "BV. K7F3A92X",
         "Aanmelden mislukt — controleer je gegevens."),
     "fr" to Lg("MV3D · Gestion des machines", "Environnement machine", "Tablette grue", "Se connecter",
         "Connectez-vous avec votre compte MV3D pour gérer vos chantiers et machines.",
-        "E-mail", "Code", "E-mail", "Mot de passe", "Code d'accès", "Connexion",
+        "E-mail", "Grue", "E-mail", "Mot de passe", "Code de grue", "Connexion",
         "MV3D-Manager · environnement machine", "nom@entreprise.be", "Votre mot de passe", "EX. K7F3A92X",
         "Échec de connexion — vérifiez vos informations."),
     "en" to Lg("MV3D · Machine management", "Machine environment", "Crane tablet", "Sign in",
         "Sign in with your MV3D account to manage your sites and machines.",
-        "Email", "Code", "Email", "Password", "Access code", "Sign in",
+        "Email", "Crane", "Email", "Password", "Crane code", "Sign in",
         "MV3D-Manager · machine environment", "name@company.com", "Your password", "E.G. K7F3A92X",
         "Sign-in failed — check your details."),
 )
@@ -88,6 +90,7 @@ fun LoginScreen(
                                 }
                             }
                         }
+                        Image(painterResource(R.drawable.mv3d_logo), contentDescription = "MV3D", modifier = Modifier.size(92.dp).padding(bottom = 14.dp))
                         Text(t.heading, color = LInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                         Text(t.lead, color = LMuted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp, bottom = 22.dp))
 
@@ -178,9 +181,7 @@ private fun LeftPanel(t: Lg, modifier: Modifier) {
         }
         // logo + label bovenaan
         Row(Modifier.align(Alignment.TopStart).padding(start = 44.dp, top = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(15.dp)).background(Brush.linearGradient(listOf(Red2, Red))), contentAlignment = Alignment.Center) {
-                Text("M", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            }
+            Image(painterResource(R.drawable.mv3d_logo), contentDescription = null, modifier = Modifier.size(60.dp))
             Text(t.top, color = LSoft, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
         // woordmerk onderaan

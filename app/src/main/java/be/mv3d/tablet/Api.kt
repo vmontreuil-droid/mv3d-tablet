@@ -112,6 +112,13 @@ class Api(private val server: String, private val code: String) {
         }
     }
 
+    /** Kraancode controleren: bestaat de machine? (via /api/machines/sync). */
+    fun verifyCode(): Boolean = try {
+        val req = Request.Builder().url("$server/api/machines/sync")
+            .post(JSONObject().put("connection_code", code).toString().toRequestBody(json)).build()
+        http.newCall(req).execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
+
     /** Toegangscode → sessie: redeem-code (token_hash) + Supabase verify. */
     fun loginCode(accessCode: String): Pair<String, String>? {
         val rReq = Request.Builder().url("$server/api/worksmanager/redeem-code")

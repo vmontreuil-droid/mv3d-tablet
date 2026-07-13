@@ -117,11 +117,27 @@ fun DashboardScreen(
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
-                    Text(if (view == "kraan") "MIJN KRAAN" else "WERVEN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 }
-                if (view == "kraan") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                // grote overzichtskaart bovenaan — volledige breedte, met de werven erop
+                Card(Modifier.fillMaxWidth().height(360.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                    Column {
+                        Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
+                            Text("Kraan & werven op de kaart", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.weight(1f))
+                            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)); Spacer(Modifier.size(4.dp))
+                            Text("Kraan", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))
+                            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)); Spacer(Modifier.size(4.dp))
+                            Text("Werven", color = DMuted, fontSize = 11.sp)
+                        }
+                        OverviewMap(server, code, ov?.lat, ov?.lon, werven)
+                    }
+                }
+
+                if (view == "kraan") {
                     // machinekaart
-                    Card(Modifier.width(320.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                    Card(Modifier.width(360.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                         Column(Modifier.padding(22.dp)) {
                             Box(Modifier.size(84.dp).clip(RoundedCornerShape(20.dp)).background(DRedTint), contentAlignment = Alignment.Center) {
                                 Image(painterResource(R.drawable.ic_excavator), null, Modifier.size(58.dp), colorFilter = ColorFilter.tint(DRed))
@@ -136,22 +152,6 @@ fun DashboardScreen(
                             Fact("Kraancode", code, mono = true)
                             Fact("Actieve werf", werven.firstOrNull()?.name ?: "—")
                             Fact("Werven", werven.size.toString())
-                        }
-                    }
-                    // kaart
-                    Card(Modifier.weight(1f).height(300.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
-                        Column {
-                            Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
-                                Text("Kraan & werven op de kaart", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.weight(1f))
-                                // legende
-                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)); Spacer(Modifier.size(4.dp))
-                                Text("Kraan", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))
-                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)); Spacer(Modifier.size(4.dp))
-                                Text("Werven", color = DMuted, fontSize = 11.sp)
-                            }
-                            OverviewMap(server, code, ov?.lat, ov?.lon, werven)
                         }
                     }
                 }

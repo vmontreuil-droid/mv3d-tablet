@@ -82,10 +82,12 @@ fun DashboardScreen(
     val gs = ov?.guidance?.takeIf { it.isNotBlank() } ?: "—"
     val (gsFg, gsBg) = gsColors(gs)
     val werven = ov?.werven ?: emptyList()
+    var navOpen by remember { mutableStateOf(true) }
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
             // ── SIDEBAR ──
+            if (navOpen) {
             Column(Modifier.width(212.dp).fillMaxHeight().background(Color.White).padding(horizontal = 12.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(Modifier.padding(start = 4.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(34.dp))
@@ -96,7 +98,6 @@ fun DashboardScreen(
                 NavItem(Icons.Outlined.Map, "Kaart", false) {}
                 NavItem(Icons.Outlined.Folder, "Bestanden", false) {}
                 NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
-                NavItem(Icons.Outlined.ScreenShare, "Scherm delen", false) { onSettings() }
                 Spacer(Modifier.weight(1f))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(12.dp)) {
                     Text("Ingelogd als kraan", color = DMuted, fontSize = 11.sp)
@@ -109,10 +110,16 @@ fun DashboardScreen(
                 NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(DLine))
+            }
 
             // ── MAIN ──
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text("MIJN KRAAN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
+                    }
+                    Text("MIJN KRAAN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     // machinekaart
                     Card(Modifier.width(320.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
@@ -220,6 +227,7 @@ private fun OverviewMap(server: String, code: String, mLat: Double?, mLon: Doubl
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val aspect = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else 2f
+        val boxW = maxWidth; val boxH = maxHeight   // opvangen: niet bereikbaar in geneste Box-scope
         var spanVX = (vxs.max() - vxs.min()).coerceAtLeast(0.0028) * 1.4
         var spanVY = (vys.max() - vys.min()).coerceAtLeast(0.0016) * 1.4
         if (spanVX / spanVY < aspect) spanVX = spanVY * aspect else spanVY = spanVX / aspect
@@ -255,7 +263,6 @@ private fun OverviewMap(server: String, code: String, mLat: Double?, mLon: Doubl
                 if (mb != null) Image(mb, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
                 else Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Kaart laden…", color = DMuted, fontSize = 13.sp) }
 
-                val boxW = maxWidth; val boxH = maxHeight
                 for (p in pts) {
                     val fx = ((p.lon * cosLat - cVX) / spanVX + 0.5).coerceIn(0.03, 0.97).toFloat()
                     val fy = (0.5 - (p.lat - cVY) / spanVY).coerceIn(0.03, 0.97).toFloat()

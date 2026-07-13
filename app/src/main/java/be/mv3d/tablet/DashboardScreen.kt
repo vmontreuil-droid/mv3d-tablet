@@ -81,9 +81,9 @@ fun DashboardScreen(
     val name = (ov?.name?.takeIf { it.isNotBlank() } ?: machineName.takeIf { it.isNotBlank() }) ?: "Kraan"
     val gs = ov?.guidance?.takeIf { it.isNotBlank() } ?: "—"
     val (gsFg, gsBg) = gsColors(gs)
-    val werven = ov?.werven ?: emptyList()
+    val werven = (ov?.werven ?: emptyList()).sortedByDescending { it.current }  // actieve werf eerst
     var navOpen by remember { mutableStateOf(false) }  // menu ingeklapt bij opstart
-    var view by remember { mutableStateOf("kraan") }  // "kraan" | "werven"
+    var view by remember { mutableStateOf("werven") }  // "kraan" | "werven" — start op werven (kaart + tegels)
     var selectedWerf by remember { mutableStateOf<String?>(null) }
     val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
 
@@ -113,8 +113,12 @@ fun DashboardScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 8.dp)) {
                         Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(DOn)); Text("Online · $gs", color = DOn, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                    Text("Kraancode", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
+                    Text(code, color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("Actieve werf", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
                     Text(activeWerfName, color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Werven", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
+                    Text(werven.size.toString(), color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
                 NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
@@ -125,7 +129,6 @@ fun DashboardScreen(
             // ── MAIN ──
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(30.dp))  // logo altijd zichtbaar
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
@@ -151,22 +154,12 @@ fun DashboardScreen(
                 }
 
                 if (view == "kraan") {
-                    // machinekaart
-                    Card(Modifier.width(360.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
-                        Column(Modifier.padding(22.dp)) {
-                            Box(Modifier.size(84.dp).clip(RoundedCornerShape(20.dp)).background(DRedTint), contentAlignment = Alignment.Center) {
-                                Image(painterResource(R.drawable.ic_excavator), null, Modifier.size(58.dp), colorFilter = ColorFilter.tint(DRed))
-                            }
-                            Text(name, color = DInk, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-                            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.clip(RoundedCornerShape(6.dp)).background(gsBg).padding(horizontal = 9.dp, vertical = 3.dp)) { Text(gs, color = gsFg, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                                Row(Modifier.clip(RoundedCornerShape(50)).background(DOnBg).padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(DOn)); Text("Online", color = DOn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            Fact("Kraancode", code, mono = true)
-                            Fact("Actieve werf", activeWerfName)
-                            Fact("Werven", werven.size.toString())
+                    // kraan-info staat enkel in de zijbalk — deze pagina configureren we later
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                        Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Outlined.Tune, null, tint = DMuted, modifier = Modifier.size(28.dp))
+                            Text("Mijn kraan", color = DInk, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Deze pagina configureren we later.", color = DMuted, fontSize = 13.sp)
                         }
                     }
                 }

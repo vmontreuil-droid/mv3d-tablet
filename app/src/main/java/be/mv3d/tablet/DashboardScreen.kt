@@ -93,7 +93,7 @@ fun DashboardScreen(
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
             // ── SIDEBAR ──
             if (navOpen) {
-            Column(Modifier.width(212.dp).fillMaxHeight().background(Color.White).padding(horizontal = 12.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(Modifier.width(212.dp).fillMaxHeight().background(Color.White).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(Modifier.padding(start = 4.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(34.dp))
                     Column { Text("MV3D", color = DRed, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("Machineapp", color = DMuted, fontSize = 11.sp) }
@@ -101,7 +101,7 @@ fun DashboardScreen(
                 NavItem(Icons.Outlined.Agriculture, "Mijn kraan", view == "kraan") { view = "kraan" }
                 NavItem(Icons.Outlined.Foundation, "Werven", view == "werven") { view = "werven" }
                 NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(14.dp))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         Box(Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(DRedTint), contentAlignment = Alignment.Center) {
@@ -146,20 +146,13 @@ fun DashboardScreen(
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
                     Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Spacer(Modifier.weight(1f))
-                    // actieve werf rechtsboven met rood bolletje
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(DRedTint).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DRed))
-                        Text(activeWerfName, color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
                 }
                 val sel = selectedWerf
                 if (sel != null) WerfDetail(werven.firstOrNull { it.name == sel }, sel, name, ov?.lat, ov?.lon) { selectedWerf = null }
                 else {
                 // grote overzichtskaart bovenaan (enkel in Werven-view) — volledige breedte, met de werven erop
                 if (view == "werven") Card(Modifier.fillMaxWidth().height(400.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
-                    Column {
+                    Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
                             Text("Kraan & Werven", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -167,9 +160,11 @@ fun DashboardScreen(
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)); Spacer(Modifier.size(4.dp))
                             Text("Kraan", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)); Spacer(Modifier.size(4.dp))
-                            Text("Werven", color = DMuted, fontSize = 11.sp)
+                            Text("Werven", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))
+                            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DRed)); Spacer(Modifier.size(4.dp))
+                            Text(activeWerfName, color = DRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-                        PortalMap(name, ov?.lat, ov?.lon, werven, onOpenWerf = { selectedWerf = it }, modifier = Modifier.fillMaxSize())
+                        PortalMap(name, ov?.lat, ov?.lon, werven, onOpenWerf = { selectedWerf = it }, modifier = Modifier.fillMaxWidth().weight(1f))
                     }
                 }
 

@@ -35,9 +35,8 @@ fun PortalMap(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                settings.useWideViewPort = true
-                settings.loadWithOverviewMode = true
                 settings.allowFileAccess = true
+                setBackgroundColor(0xFFF6F8FB.toInt())
                 WebView.setWebContentsDebuggingEnabled(true)
                 webViewClient = WebViewClient()
                 setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }

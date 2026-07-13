@@ -142,8 +142,10 @@ fun DashboardScreen(
                 // ── WERVEN ──
                 if (werven.isNotEmpty()) {
                     Text("WERVEN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        werven.take(3).forEachIndexed { i, w ->
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                      werven.chunked(3).forEach { rij ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        for (w in rij) {
                             Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                                 Column {
                                     Box(Modifier.fillMaxWidth().height(108.dp), contentAlignment = Alignment.Center) {
@@ -165,7 +167,9 @@ fun DashboardScreen(
                                 }
                             }
                         }
-                        repeat(3 - werven.take(3).size) { Spacer(Modifier.weight(1f)) }
+                        repeat(3 - rij.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                      }
                     }
                 }
 

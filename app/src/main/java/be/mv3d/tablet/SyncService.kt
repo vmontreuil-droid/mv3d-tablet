@@ -58,7 +58,19 @@ class SyncService : Service() {
         val api = Api(server, code)
         val tree = DocumentFile.fromTreeUri(this, Uri.parse(treeStr)) ?: run { lastStatus = "map ongeldig"; return }
 
-        val listing = JSONArray().apply { tree.listFiles().forEach { f -> put(JSONObject().put("name", f.name ?: "").put("size", f.length()).put("dir", f.isDirectory)) } }
+        // recursieve boom (relatieve paden) zodat het portaal de mappenstructuur toont
+        val filesArr = JSONArray()
+        fun walk(dir: DocumentFile, prefix: String, depth: Int) {
+            if (depth > 5 || filesArr.length() >= 800) return
+            for (f in dir.listFiles()) {
+                val nm = f.name ?: continue
+                val rel = if (prefix.isEmpty()) nm else "$prefix/$nm"
+                if (f.isDirectory) walk(f, rel, depth + 1)
+                else filesArr.put(JSONObject().put("path", rel).put("size", f.length()))
+            }
+        }
+        walk(tree, "", 0)
+        val listing = JSONObject().put("root", tree.name ?: "").put("files", filesArr)
         val loc = lastLocation()
         val res = api.sync(listing, loc?.first, loc?.second, loc?.third)
         res.name?.let { machineName = it }

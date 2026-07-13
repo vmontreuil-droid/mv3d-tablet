@@ -15,7 +15,8 @@ data class Command(
     val fileName: String?, val uploadUrl: String?, val downloadUrl: String?
 )
 data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val name: String?, val commands: List<Command>)
-data class ConvOut(val path: String, val text: String)
+/** Eén geconverteerd bestand. dir = "project" (→ Projects/<werf>/) of "coordsys" (→ CoordinateSystems/). */
+data class ConvOut(val path: String, val text: String, val dir: String = "project")
 data class ConvResult(val werf: String, val folder: String, val surfaces: Int, val lines: Int, val files: List<ConvOut>)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
@@ -27,7 +28,7 @@ class Api(private val server: String, private val code: String) {
         .build()
 
     /** POST /api/machines/sync — heartbeat + mappenlijst + GPS; geeft bestanden + commando's terug. */
-    fun sync(listing: JSONArray?, lat: Double?, lon: Double?, acc: Float?): SyncResult {
+    fun sync(listing: JSONObject?, lat: Double?, lon: Double?, acc: Float?): SyncResult {
         val body = JSONObject().put("connection_code", code)
         if (listing != null) body.put("listing", listing)
         if (lat != null && lon != null) { body.put("latitude", lat); body.put("longitude", lon); if (acc != null) body.put("accuracy", acc.toDouble()) }
@@ -79,7 +80,7 @@ class Api(private val server: String, private val code: String) {
             if (!r.isSuccessful) throw RuntimeException((try { JSONObject(txt).optString("error") } catch (_: Exception) { "" }).ifBlank { "conversie mislukt (${r.code})" })
             val o = JSONObject(txt)
             val files = ArrayList<ConvOut>()
-            o.optJSONArray("files")?.let { for (i in 0 until it.length()) { val f = it.getJSONObject(i); files.add(ConvOut(f.getString("path"), f.getString("text"))) } }
+            o.optJSONArray("files")?.let { for (i in 0 until it.length()) { val f = it.getJSONObject(i); files.add(ConvOut(f.getString("path"), f.getString("text"), f.optString("dir", "project"))) } }
             return ConvResult(o.optString("werf"), o.optString("folder"), o.optInt("surfaces"), o.optInt("lines"), files)
         }
     }

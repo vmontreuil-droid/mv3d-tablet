@@ -66,13 +66,22 @@ class SyncService : Service() {
         fun walk(dir: DocumentFile, prefix: String, depth: Int) {
             if (depth > 5 || filesArr.length() >= 800) return
             val children = dir.listFiles()
-            if (prefix.isNotEmpty() && children.any { it.isFile && it.name?.equals("Project.yml", true) == true }) {
-                wervenArr.put(
-                    JSONObject()
-                        .put("name", dir.name ?: prefix.substringAfterLast('/'))
-                        .put("path", prefix)
-                        .put("source", if (prefix.lowercase().contains("cloud")) "cloud" else "local")
-                )
+            val ymlDoc = if (prefix.isEmpty()) null else children.firstOrNull { it.isFile && it.name?.equals("Project.yml", true) == true }
+            if (ymlDoc != null) {
+                val obj = JSONObject()
+                    .put("name", dir.name ?: prefix.substringAfterLast('/'))
+                    .put("path", prefix)
+                    .put("source", if (prefix.lowercase().contains("cloud")) "cloud" else "local")
+                // coördinaten + CRS uit de yml → server zet ze om naar GPS (bolletje op de kaart)
+                try {
+                    val txt = contentResolver.openInputStream(ymlDoc.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    if (txt != null) {
+                        val (e, n, crs) = parseWerfYml(txt)
+                        if (e != null && n != null) { obj.put("easting", e); obj.put("northing", n) }
+                        if (crs != null) obj.put("crs", crs)
+                    }
+                } catch (_: Exception) {}
+                wervenArr.put(obj)
             }
             for (f in children) {
                 val nm = f.name ?: continue
@@ -167,6 +176,22 @@ class SyncService : Service() {
 
     private fun readDoc(doc: DocumentFile): ByteArray =
         contentResolver.openInputStream(doc.uri)?.use { it.readBytes() } ?: ByteArray(0)
+
+    /** Project.yml → (Easting, Northing, CRS). Design.LastKnownPosition.x=Easting, .z=Northing. */
+    private fun parseWerfYml(text: String): Triple<Double?, Double?, String?> {
+        var e: Double? = null; var n: Double? = null; var crs: String? = null
+        var seenPos = false
+        for (raw in text.lineSequence()) {
+            val t = raw.trim()
+            when {
+                t.startsWith("LastKnownPosition") -> seenPos = true
+                seenPos && e == null && t.startsWith("x:") -> e = t.removePrefix("x:").trim().toDoubleOrNull()
+                seenPos && n == null && t.startsWith("z:") -> n = t.removePrefix("z:").trim().toDoubleOrNull()
+                crs == null && t.startsWith("CoordinateSystem:") -> crs = t.removePrefix("CoordinateSystem:").trim().ifBlank { null }
+            }
+        }
+        return Triple(e, n, crs)
+    }
 
     private suspend fun lastLocation(): Triple<Double, Double, Float>? = try {
         val loc = LocationServices.getFusedLocationProviderClient(this).lastLocation.await()

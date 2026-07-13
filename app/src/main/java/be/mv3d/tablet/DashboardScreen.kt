@@ -169,14 +169,7 @@ fun DashboardScreen(
                     }
                 }
 
-                // ── CONVERTOR ──
-                Text("BESTANDSCONVERTOR", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                val tiles = listOf("Unicontrol" to R.drawable.tile_unicontrol, "Topcon" to R.drawable.tile_topcon, "Leica" to R.drawable.tile_leica, "Trimble" to R.drawable.tile_trimble, "CHCNAV" to R.drawable.tile_chcnav)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    for ((brand, res) in tiles) {
-                        Image(painterResource(res), brand, Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).clickable { onConvert(brand) })
-                    }
-                }
+                // (Bestandsconvertor komt later terug onder de Convertor-tab / bij nieuwe werf.)
                 Spacer(Modifier.height(8.dp))
             }
         }

@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +81,7 @@ fun LoginScreen(
             Row(Modifier.fillMaxSize()) {
                 if (wide) LeftPanel(t, Modifier.weight(1f).fillMaxHeight())
                 Box(Modifier.then(if (wide) Modifier.width(460.dp) else Modifier.fillMaxWidth()).fillMaxHeight().background(LPanel), contentAlignment = Alignment.Center) {
+                    if (!wide) Canvas(Modifier.fillMaxSize()) { drawLoginDecor() }   // achtergrond-decor in staande stand
                     Column(Modifier.widthIn(max = 340.dp).padding(horizontal = 40.dp)) {
                         // taalswitcher
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.align(Alignment.End).padding(bottom = 18.dp)) {
@@ -155,44 +157,35 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit, ph: 
     }
 }
 
+private fun DrawScope.drawLoginDecor() {
+    val w = size.width; val h = size.height
+    val cx = w * 0.24f; val cy = h * 0.34f
+    val red = Red
+    drawCircle(red.copy(alpha = 0.20f), radius = w * 0.14f, center = Offset(cx, cy), style = Stroke(2f))
+    drawCircle(red.copy(alpha = 0.11f), radius = w * 0.22f, center = Offset(cx, cy), style = Stroke(2f))
+    drawCircle(red.copy(alpha = 0.05f), radius = w * 0.31f, center = Offset(cx, cy), style = Stroke(2f))
+    drawCircle(Color(0xFF9AA3B2).copy(alpha = 0.18f), radius = w * 0.10f, center = Offset(w * 0.72f, h * 0.72f), style = Stroke(2f))
+    fun plus(px: Float, py: Float, s: Float) {
+        drawLine(red.copy(alpha = 0.5f), Offset(px, py - s), Offset(px, py + s), 2f)
+        drawLine(red.copy(alpha = 0.5f), Offset(px - s, py), Offset(px + s, py), 2f)
+    }
+    plus(w * 0.52f, h * 0.18f, 15f); plus(w * 0.80f, h * 0.34f, 13f); plus(w * 0.40f, h * 0.70f, 13f)
+    val sq = w * 0.033f
+    drawRect(red.copy(alpha = 0.38f), topLeft = Offset(w * 0.33f, h * 0.63f), size = androidx.compose.ui.geometry.Size(sq, sq), style = Stroke(2f))
+    val tp = Path().apply { moveTo(w * 0.70f, h * 0.40f); lineTo(w * 0.77f, h * 0.44f); lineTo(w * 0.70f, h * 0.48f); close() }
+    drawPath(tp, red.copy(alpha = 0.11f))
+}
+
 @Composable
 private fun LeftPanel(t: Lg, modifier: Modifier) {
     Box(modifier.background(Brush.linearGradient(listOf(Color(0xFFF4F5F8), Color(0xFFECEEF3), Color(0xFFE4E7EE))))) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w = size.width; val h = size.height
-            val cx = w * 0.24f; val cy = h * 0.34f
-            val red = Red
-            drawCircle(red.copy(alpha = 0.20f), radius = w * 0.14f, center = Offset(cx, cy), style = Stroke(2f))
-            drawCircle(red.copy(alpha = 0.11f), radius = w * 0.22f, center = Offset(cx, cy), style = Stroke(2f))
-            drawCircle(red.copy(alpha = 0.05f), radius = w * 0.31f, center = Offset(cx, cy), style = Stroke(2f))
-            drawCircle(Color(0xFF9AA3B2).copy(alpha = 0.18f), radius = w * 0.10f, center = Offset(w * 0.72f, h * 0.72f), style = Stroke(2f))
-            // meet-kruisjes
-            fun plus(px: Float, py: Float, s: Float) {
-                drawLine(red.copy(alpha = 0.5f), Offset(px, py - s), Offset(px, py + s), 2f)
-                drawLine(red.copy(alpha = 0.5f), Offset(px - s, py), Offset(px + s, py), 2f)
-            }
-            plus(w * 0.52f, h * 0.18f, 15f); plus(w * 0.80f, h * 0.34f, 13f); plus(w * 0.40f, h * 0.70f, 13f)
-            // vierkantje
-            val sq = w * 0.033f
-            drawRect(red.copy(alpha = 0.38f), topLeft = Offset(w * 0.33f, h * 0.63f), size = androidx.compose.ui.geometry.Size(sq, sq), style = Stroke(2f))
-            // driehoek
-            val tp = Path().apply { moveTo(w * 0.70f, h * 0.40f); lineTo(w * 0.77f, h * 0.44f); lineTo(w * 0.70f, h * 0.48f); close() }
-            drawPath(tp, red.copy(alpha = 0.11f))
+        Canvas(Modifier.fillMaxSize()) { drawLoginDecor() }
+        // groot logo + ondertitel (geen geplet tekst-woordmerk meer)
+        Column(Modifier.align(Alignment.CenterStart).padding(start = 56.dp, end = 40.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+            Image(painterResource(R.drawable.mv3d_logo), contentDescription = "MV3D", modifier = Modifier.size(184.dp))
+            Text(t.subtitle, color = LInk, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         }
-        // logo + label bovenaan
-        Row(Modifier.align(Alignment.TopStart).padding(start = 44.dp, top = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Image(painterResource(R.drawable.mv3d_logo), contentDescription = null, modifier = Modifier.size(60.dp))
-            Text(t.top, color = LSoft, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        }
-        // woordmerk onderaan
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 52.dp, bottom = 64.dp)) {
-            Row {
-                Text("MV3D", color = Red, fontSize = 68.sp, fontWeight = FontWeight.Bold)
-                Text("-Manager", color = LInk, fontSize = 68.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(t.subtitle, color = LSoft, fontSize = 20.sp, modifier = Modifier.padding(top = 14.dp))
-        }
-        Text(t.chip, color = LMuted, fontSize = 12.sp, letterSpacing = 2.sp, modifier = Modifier.align(Alignment.BottomStart).padding(start = 52.dp, bottom = 34.dp))
+        Text(t.chip, color = LMuted, fontSize = 12.sp, letterSpacing = 2.sp, modifier = Modifier.align(Alignment.BottomStart).padding(start = 56.dp, bottom = 34.dp))
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(2.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, Red, Color.Transparent))))
     }
 }

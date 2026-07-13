@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 private val DBg = Color(0xFFFFFFFF); private val DPanel2 = Color(0xFFF6F8FB)
@@ -55,11 +57,14 @@ fun DashboardScreen(
             val o = withContext(Dispatchers.IO) { runCatching { api.overview() }.getOrNull() }
             if (o != null) {
                 ov = o
-                for (w in o.werven) {
-                    val wla = w.lat; val wlo = w.lon
-                    if (!werfBmps.containsKey(w.name) && wla != null && wlo != null) {
-                        val b = withContext(Dispatchers.IO) { api.aerial(wla, wlo, 400, 240) }
-                        if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[w.name] = it }
+                // werf-luchtfoto's parallel ophalen (veel sneller dan één voor één)
+                val todo = o.werven.filter { it.lat != null && it.lon != null && !werfBmps.containsKey(it.name) }
+                if (todo.isNotEmpty()) coroutineScope {
+                    todo.map { w ->
+                        async(Dispatchers.IO) { w.name to api.aerial(w.lat!!, w.lon!!, 400, 240) }
+                    }.forEach { job ->
+                        val (nm, b) = job.await()
+                        if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[nm] = it }
                     }
                 }
             }

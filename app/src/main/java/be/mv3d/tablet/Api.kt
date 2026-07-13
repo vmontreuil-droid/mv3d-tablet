@@ -30,10 +30,11 @@ class Api(private val server: String, private val code: String) {
         .build()
 
     /** POST /api/machines/sync — heartbeat + mappenlijst + GPS; geeft bestanden + commando's terug. */
-    fun sync(listing: JSONObject?, lat: Double?, lon: Double?, acc: Float?): SyncResult {
+    fun sync(listing: JSONObject?, lat: Double?, lon: Double?, acc: Float?, werven: JSONArray? = null): SyncResult {
         val body = JSONObject().put("connection_code", code)
         if (listing != null) body.put("listing", listing)
         if (lat != null && lon != null) { body.put("latitude", lat); body.put("longitude", lon); if (acc != null) body.put("accuracy", acc.toDouble()) }
+        if (werven != null && werven.length() > 0) body.put("werven", werven)
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->
@@ -131,7 +132,12 @@ class Api(private val server: String, private val code: String) {
     /** Satelliet-luchtfoto (ArcGIS World Imagery) rond een GPS-punt → JPEG-bytes. */
     fun aerial(lat: Double, lon: Double, w: Int, h: Int): ByteArray? {
         val dLon = 0.006; val dLat = dLon * (h.toDouble() / w) * 0.62
-        val bbox = "${lon - dLon},${lat - dLat},${lon + dLon},${lat + dLat}"
+        return aerialBbox(lon - dLon, lat - dLat, lon + dLon, lat + dLat, w, h)
+    }
+
+    /** Luchtfoto voor een expliciete bbox (west,south,east,north in WGS84) → JPEG-bytes. */
+    fun aerialBbox(west: Double, south: Double, east: Double, north: Double, w: Int, h: Int): ByteArray? {
+        val bbox = "$west,$south,$east,$north"
         val url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=$bbox&bboxSR=4326&imageSR=3857&size=$w,$h&format=jpg&f=image"
         return try { http.newCall(Request.Builder().url(url).build()).execute().use { if (!it.isSuccessful) null else it.body?.bytes() } } catch (_: Exception) { null }
     }

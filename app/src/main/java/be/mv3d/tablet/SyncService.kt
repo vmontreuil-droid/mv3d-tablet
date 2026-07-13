@@ -58,11 +58,23 @@ class SyncService : Service() {
         val api = Api(server, code)
         val tree = DocumentFile.fromTreeUri(this, Uri.parse(treeStr)) ?: run { lastStatus = "map ongeldig"; return }
 
-        // recursieve boom (relatieve paden) zodat het portaal de mappenstructuur toont
+        // recursieve boom (relatieve paden) zodat het portaal de mappenstructuur toont.
+        // Elke map met een Project.yml = een werf → mee terugsyncen naar het platform
+        // (werkt voor Unicontrol\Projects\<werf> én de cloud-map).
         val filesArr = JSONArray()
+        val wervenArr = JSONArray()
         fun walk(dir: DocumentFile, prefix: String, depth: Int) {
             if (depth > 5 || filesArr.length() >= 800) return
-            for (f in dir.listFiles()) {
+            val children = dir.listFiles()
+            if (prefix.isNotEmpty() && children.any { it.isFile && it.name?.equals("Project.yml", true) == true }) {
+                wervenArr.put(
+                    JSONObject()
+                        .put("name", dir.name ?: prefix.substringAfterLast('/'))
+                        .put("path", prefix)
+                        .put("source", if (prefix.lowercase().contains("cloud")) "cloud" else "local")
+                )
+            }
+            for (f in children) {
                 val nm = f.name ?: continue
                 val rel = if (prefix.isEmpty()) nm else "$prefix/$nm"
                 if (f.isDirectory) walk(f, rel, depth + 1)
@@ -72,7 +84,7 @@ class SyncService : Service() {
         walk(tree, "", 0)
         val listing = JSONObject().put("root", tree.name ?: "").put("files", filesArr)
         val loc = lastLocation()
-        val res = api.sync(listing, loc?.first, loc?.second, loc?.third)
+        val res = api.sync(listing, loc?.first, loc?.second, loc?.third, wervenArr)
         res.name?.let { machineName = it }
 
         val done = ArrayList<String>()

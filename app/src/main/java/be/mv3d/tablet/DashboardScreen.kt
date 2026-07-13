@@ -32,6 +32,7 @@ private val DBg = Color(0xFFFFFFFF); private val DPanel2 = Color(0xFFF6F8FB)
 private val DInk = Color(0xFF1A1D26); private val DSoft = Color(0xFF586173); private val DMuted = Color(0xFF8B93A3); private val DLine = Color(0xFFE9EDF3)
 private val DRed = Color(0xFFE30613); private val DRed2 = Color(0xFFFF3A47); private val DRedTint = Color(0xFFFFF5F6)
 private val DGreen = Color(0xFF20C95A); private val DOn = Color(0xFF12A150); private val DOnBg = Color(0xFFE3F6EA)
+private val DOrange = Color(0xFFFF8A00)
 
 private fun gsColors(gs: String): Pair<Color, Color> = when (gs.uppercase()) {
     "UNICONTROL" -> Color(0xFF1A86C8) to Color(0xFFE6F2FB)
@@ -47,7 +48,6 @@ fun DashboardScreen(
     onSettings: () -> Unit, onConvert: (String) -> Unit, onLogout: () -> Unit,
 ) {
     var ov by remember { mutableStateOf<Overview?>(null) }
-    var mapBmp by remember { mutableStateOf<ImageBitmap?>(null) }
     val werfBmps = remember { mutableStateMapOf<String, ImageBitmap>() }
     LaunchedEffect(code) {
         val api = Api(server, code)
@@ -55,11 +55,6 @@ fun DashboardScreen(
             val o = withContext(Dispatchers.IO) { runCatching { api.overview() }.getOrNull() }
             if (o != null) {
                 ov = o
-                val la = o.lat; val lo = o.lon
-                if (mapBmp == null && la != null && lo != null) {
-                    val b = withContext(Dispatchers.IO) { api.aerial(la, lo, 1000, 340) }
-                    if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { mapBmp = it }
-                }
                 for (w in o.werven) {
                     val wla = w.lat; val wlo = w.lon
                     if (!werfBmps.containsKey(w.name) && wla != null && wlo != null) {
@@ -131,19 +126,15 @@ fun DashboardScreen(
                         Column {
                             Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
-                                Text("Waar staat de kraan", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Kraan & werven op de kaart", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.weight(1f))
-                                Text(ov?.let { if (it.lat != null && it.lon != null) "%.4f, %.4f".format(it.lat, it.lon) else "" } ?: "", color = DMuted, fontSize = 12.sp)
+                                // legende
+                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)); Spacer(Modifier.size(4.dp))
+                                Text("Kraan", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))
+                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)); Spacer(Modifier.size(4.dp))
+                                Text("Werven", color = DMuted, fontSize = 11.sp)
                             }
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                val mb = mapBmp
-                                if (mb != null) Image(mb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                else Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Kaart laden…", color = DMuted, fontSize = 13.sp) }
-                                // groen bolletje
-                                Box(Modifier.size(20.dp).clip(RoundedCornerShape(50)).background(Color.White), contentAlignment = Alignment.Center) {
-                                    Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).background(DGreen))
-                                }
-                            }
+                            OverviewMap(server, code, ov?.lat, ov?.lon, werven)
                         }
                     }
                 }
@@ -159,7 +150,9 @@ fun DashboardScreen(
                                         val wb = werfBmps[w.name]
                                         if (wb != null) Image(wb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                         else Box(Modifier.fillMaxSize().background(DPanel2))
-                                        Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)) }
+                                        // oranje bolletje op het werfadres (enkel als de werf een locatie heeft)
+                                        if (w.lat != null && w.lon != null)
+                                            Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)) }
                                     }
                                     Column(Modifier.padding(13.dp)) {
                                         Text(w.name, color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -196,6 +189,59 @@ private fun ColumnScope.Fact(k: String, v: String, mono: Boolean = false) {
         Text(k, color = DMuted, fontSize = 13.sp)
         if (mono) Box(Modifier.clip(RoundedCornerShape(6.dp)).background(DPanel2).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(v, color = DRed, fontSize = 12.5.sp, fontWeight = FontWeight.Bold) }
         else Text(v, color = DInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Overzichtskaart met luchtfoto: kraan (groen) + alle werven (oranje) op hun echte GPS-positie. */
+@Composable
+private fun OverviewMap(server: String, code: String, mLat: Double?, mLon: Double?, werven: List<Werf>) {
+    // punten verzamelen (machine = groen, werven met locatie = oranje)
+    data class P(val lat: Double, val lon: Double, val machine: Boolean)
+    val pts = buildList {
+        if (mLat != null && mLon != null) add(P(mLat, mLon, true))
+        for (w in werven) { val la = w.lat; val lo = w.lon; if (la != null && lo != null) add(P(la, lo, false)) }
+    }
+    if (pts.isEmpty()) {
+        Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Geen locatie bekend", color = DMuted, fontSize = 13.sp) }
+        return
+    }
+    // visuele coördinaten (lengtegraad indrukken met cos(breedte) zodat de kaart niet vervormt)
+    val cosLat = 0.63
+    val vxs = pts.map { it.lon * cosLat }; val vys = pts.map { it.lat }
+    val cVX = (vxs.min() + vxs.max()) / 2.0; val cVY = (vys.min() + vys.max()) / 2.0
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val aspect = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else 2f
+        var spanVX = (vxs.max() - vxs.min()).coerceAtLeast(0.0028) * 1.4
+        var spanVY = (vys.max() - vys.min()).coerceAtLeast(0.0016) * 1.4
+        if (spanVX / spanVY < aspect) spanVX = spanVY * aspect else spanVY = spanVX / aspect
+
+        val west = (cVX - spanVX / 2) / cosLat; val east = (cVX + spanVX / 2) / cosLat
+        val south = cVY - spanVY / 2; val north = cVY + spanVY / 2
+
+        var bmp by remember { mutableStateOf<ImageBitmap?>(null) }
+        LaunchedEffect(west, south, east, north) {
+            val h = (1000f / aspect).toInt().coerceIn(300, 900)
+            val b = withContext(Dispatchers.IO) { Api(server, code).aerialBbox(west, south, east, north, 1000, h) }
+            if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { bmp = it }
+        }
+        val mb = bmp
+        if (mb != null) Image(mb, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        else Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Kaart laden…", color = DMuted, fontSize = 13.sp) }
+
+        val boxW = maxWidth; val boxH = maxHeight
+        for (p in pts) {
+            val fx = ((p.lon * cosLat - cVX) / spanVX + 0.5).coerceIn(0.03, 0.97).toFloat()
+            val fy = (0.5 - (p.lat - cVY) / spanVY).coerceIn(0.03, 0.97).toFloat()
+            val ring = if (p.machine) 20.dp else 16.dp
+            val inner = if (p.machine) 14.dp else 10.dp
+            val dot = if (p.machine) DGreen else DOrange
+            Box(
+                Modifier.offset(x = boxW * fx - ring / 2, y = boxH * fy - ring / 2)
+                    .size(ring).clip(RoundedCornerShape(50)).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) { Box(Modifier.size(inner).clip(RoundedCornerShape(50)).background(dot)) }
+        }
     }
 }
 

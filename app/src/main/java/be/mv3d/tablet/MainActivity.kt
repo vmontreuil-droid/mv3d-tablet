@@ -156,8 +156,33 @@ class MainActivity : ComponentActivity() {
 
                 val openPortal = { startActivity(Intent(this@MainActivity, WebViewActivity::class.java)) }
 
+                // ── Login (MV3D-account) ──
+                val authToken by prefs.authFlow.collectAsState(initial = "")
+                val storedLang by prefs.langFlow.collectAsState(initial = "")
+                val lang = storedLang.ifBlank { java.util.Locale.getDefault().language.let { if (it in listOf("nl", "fr", "en")) it else "nl" } }
+                var loginBusy by remember { mutableStateOf(false) }
+                var loginError by remember { mutableStateOf<String?>(null) }
+                val doEmailLogin: (String, String) -> Unit = { em, p ->
+                    loginBusy = true; loginError = null
+                    scope.launch {
+                        val res = withContext(Dispatchers.IO) { runCatching { Api(prefs.server(), "").login(em, p) }.getOrNull() }
+                        loginBusy = false
+                        if (res != null) prefs.setAuth(res.first, res.second) else loginError = loginErrorText(lang)
+                    }
+                }
+                val doCodeLogin: (String) -> Unit = { c ->
+                    loginBusy = true; loginError = null
+                    scope.launch {
+                        val res = withContext(Dispatchers.IO) { runCatching { Api(prefs.server(), "").loginCode(c) }.getOrNull() }
+                        loginBusy = false
+                        if (res != null) prefs.setAuth(res.first, res.second) else loginError = loginErrorText(lang)
+                    }
+                }
+
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    when (screen) {
+                    if (authToken.isBlank()) {
+                        LoginScreen(lang = lang, onLang = { scope.launch { prefs.setLang(it) } }, busy = loginBusy, error = loginError, onEmailLogin = doEmailLogin, onCodeLogin = doCodeLogin, onSkip = { scope.launch { prefs.setAuth("guest", "") } })
+                    } else when (screen) {
                         "home" -> HomeScreen(
                             version = "build ${BuildConfig.VERSION_CODE}",
                             coupled = code.isNotBlank() && tree.isNotBlank(),
@@ -216,24 +241,36 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
     }
 
-    /** Schrijft de geconverteerde bestanden in <Unicontrol>/Projects/<werf>/, ongeacht of
-     *  de gebruiker de map Unicontrol, Projects of een bovenliggende opslagmap koos. */
+    /** Schrijft het project in <Unicontrol>/Projects/<werf>/ en de .wkt in
+     *  <Unicontrol>/CoordinateSystems/ (+ /cloud/), ongeacht welke map gekozen is. */
     private fun writeUnicontrolProject(uniTreeUri: Uri, werf: String, files: List<ConvOut>) {
         val root = DocumentFile.fromTreeUri(this, uniTreeUri) ?: throw RuntimeException("Unicontrol-map ongeldig")
         fun childDir(dir: DocumentFile, name: String): DocumentFile =
             dir.findFile(name)?.takeIf { it.isDirectory } ?: dir.createDirectory(name) ?: throw RuntimeException("Kan map '$name' niet maken")
-        // vind of maak de Projects-map
-        val projects: DocumentFile = when {
-            root.name.equals("Projects", true) -> root
-            root.findFile("Projects")?.isDirectory == true -> root.findFile("Projects")!!
-            root.findFile("Unicontrol")?.isDirectory == true -> childDir(root.findFile("Unicontrol")!!, "Projects")
-            else -> childDir(root, "Projects")
+        fun writeInto(dir: DocumentFile, fname: String, text: String) {
+            dir.findFile(fname)?.delete()
+            val doc = dir.createFile("application/octet-stream", fname) ?: throw RuntimeException("Kan $fname niet aanmaken")
+            contentResolver.openOutputStream(doc.uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
         }
+        // Unicontrol-hoofdmap bepalen (bevat Projects én CoordinateSystems)
+        val uniRoot: DocumentFile = when {
+            root.name.equals("Unicontrol", true) -> root
+            root.findFile("Unicontrol")?.isDirectory == true -> root.findFile("Unicontrol")!!
+            else -> root   // ze kozen Unicontrol zelf, Projects, of de opslag-root
+        }
+        val projects = if (root.name.equals("Projects", true)) root else childDir(uniRoot, "Projects")
         val werfDir = childDir(projects, werf)
+
+        var coordSys: DocumentFile? = null
+        var coordCloud: DocumentFile? = null
         for (f in files) {
-            werfDir.findFile(f.path)?.delete()
-            val doc = werfDir.createFile("application/octet-stream", f.path) ?: throw RuntimeException("Kan ${f.path} niet aanmaken")
-            contentResolver.openOutputStream(doc.uri)?.use { it.write(f.text.toByteArray(Charsets.UTF_8)) }
+            if (f.dir == "coordsys") {
+                if (coordSys == null) { coordSys = childDir(uniRoot, "CoordinateSystems"); coordCloud = childDir(coordSys!!, "cloud") }
+                writeInto(coordSys!!, f.path, f.text)
+                writeInto(coordCloud!!, f.path, f.text)   // ook in \cloud\ zodat Unicontrol het zeker vindt
+            } else {
+                writeInto(werfDir, f.path, f.text)
+            }
         }
     }
 

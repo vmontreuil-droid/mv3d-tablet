@@ -97,6 +97,39 @@ class Api(private val server: String, private val code: String) {
         } catch (_: Exception) { null }
     }
 
+    /** Supabase e-mail/wachtwoord-login → (access_token, e-mail). */
+    fun login(email: String, password: String): Pair<String, String>? {
+        val cfg = realtimeConfig() ?: return null
+        val body = JSONObject().put("email", email.trim()).put("password", password)
+        val req = Request.Builder().url("${cfg.first}/auth/v1/token?grant_type=password")
+            .addHeader("apikey", cfg.second).addHeader("Content-Type", "application/json")
+            .post(body.toString().toRequestBody(json)).build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) return null
+            val o = JSONObject(r.body?.string() ?: "{}")
+            val token = o.optString("access_token")
+            return if (token.isNotBlank()) token to (o.optJSONObject("user")?.optString("email") ?: email.trim()) else null
+        }
+    }
+
+    /** Toegangscode → sessie: redeem-code (token_hash) + Supabase verify. */
+    fun loginCode(accessCode: String): Pair<String, String>? {
+        val rReq = Request.Builder().url("$server/api/worksmanager/redeem-code")
+            .post(JSONObject().put("code", accessCode.trim().uppercase()).put("device", "tablet").toString().toRequestBody(json)).build()
+        val hash = http.newCall(rReq).execute().use { r -> if (!r.isSuccessful) return null; JSONObject(r.body?.string() ?: "{}").optString("token_hash") }
+        if (hash.isBlank()) return null
+        val cfg = realtimeConfig() ?: return null
+        val vReq = Request.Builder().url("${cfg.first}/auth/v1/verify")
+            .addHeader("apikey", cfg.second).addHeader("Content-Type", "application/json")
+            .post(JSONObject().put("type", "magiclink").put("token_hash", hash).toString().toRequestBody(json)).build()
+        http.newCall(vReq).execute().use { r ->
+            if (!r.isSuccessful) return null
+            val o = JSONObject(r.body?.string() ?: "{}")
+            val token = o.optString("access_token")
+            return if (token.isNotBlank()) token to (o.optJSONObject("user")?.optString("email") ?: "") else null
+        }
+    }
+
     /** POST /api/machines/screen-frame — upload één JPEG-frame, krijg de wachtende input terug. */
     fun screenFrame(jpeg: ByteArray): JSONArray {
         val req = Request.Builder().url("$server/api/machines/screen-frame?code=$code")

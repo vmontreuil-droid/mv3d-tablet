@@ -16,12 +16,18 @@ class Prefs(private val ctx: Context) {
     private val TREE = stringPreferencesKey("tree_uri")
     private val UNI = stringPreferencesKey("uni_tree_uri")   // Unicontrol-doelmap (converter)
     private val SRC = stringPreferencesKey("src_tree_uri")   // bron-bladermap (converter)
+    private val AUTH = stringPreferencesKey("auth_token")    // MV3D-account sessie
+    private val AUTH_EMAIL = stringPreferencesKey("auth_email")
+    private val LANG = stringPreferencesKey("lang")          // "" = automatisch (tablet-taal)
 
     val codeFlow = ctx.dataStore.data.map { it[CODE] ?: "" }
     val serverFlow = ctx.dataStore.data.map { it[SERVER] ?: "https://mv3d.be" }
     val treeFlow = ctx.dataStore.data.map { it[TREE] ?: "" }
     val uniFlow = ctx.dataStore.data.map { it[UNI] ?: "" }
     val srcFlow = ctx.dataStore.data.map { it[SRC] ?: "" }
+    val authFlow = ctx.dataStore.data.map { it[AUTH] ?: "" }
+    val authEmailFlow = ctx.dataStore.data.map { it[AUTH_EMAIL] ?: "" }
+    val langFlow = ctx.dataStore.data.map { it[LANG] ?: "" }
 
     suspend fun code() = ctx.dataStore.data.first()[CODE] ?: ""
     suspend fun server() = ctx.dataStore.data.first()[SERVER] ?: "https://mv3d.be"
@@ -32,4 +38,7 @@ class Prefs(private val ctx: Context) {
     suspend fun setTree(v: String) = ctx.dataStore.edit { it[TREE] = v }
     suspend fun setUni(v: String) = ctx.dataStore.edit { it[UNI] = v }
     suspend fun setSrc(v: String) = ctx.dataStore.edit { it[SRC] = v }
+    suspend fun setAuth(token: String, email: String) = ctx.dataStore.edit { it[AUTH] = token; it[AUTH_EMAIL] = email }
+    suspend fun clearAuth() = ctx.dataStore.edit { it.remove(AUTH); it.remove(AUTH_EMAIL) }
+    suspend fun setLang(v: String) = ctx.dataStore.edit { it[LANG] = v }
 }

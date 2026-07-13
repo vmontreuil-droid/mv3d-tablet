@@ -116,7 +116,8 @@ private fun buildHtml(data: String, css: String, js: String): String {
     return """<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>$css
-html,body,#map{height:100%;margin:0;background:#F6F8FB}
+html,body{height:100%;margin:0;background:#F6F8FB}
+#map{position:absolute;top:0;bottom:0;left:0;right:0}
 .lp b{font-size:14px}.lp a{color:#E30613;font-weight:700;text-decoration:none}
 .pulse{width:16px;height:16px;border-radius:50%;background:#E30613;border:3px solid #fff;box-shadow:0 0 0 0 rgba(227,6,19,.6);animation:pl 1.6s infinite}
 @keyframes pl{0%{box-shadow:0 0 0 0 rgba(227,6,19,.6)}70%{box-shadow:0 0 0 18px rgba(227,6,19,0)}100%{box-shadow:0 0 0 0 rgba(227,6,19,0)}}</style>
@@ -144,11 +145,13 @@ try{
       });
       if(!didFit && b.length){ if(b.length==1){map.setView(b[0],15);} else {map.fitBounds(b,{padding:[45,45]});} didFit=true; }
       map.invalidateSize();
-      st('OK · '+pts.length+' punt(en)');
+      var s=map.getSize();
+      st('OK · '+pts.length+' pt · '+Math.round(s.x)+'x'+Math.round(s.y));
     };
     setData(/*PTS*/$data);
     setTimeout(function(){map.invalidateSize();},300);
-    setTimeout(function(){map.invalidateSize();},1200);
+    setTimeout(function(){map.invalidateSize();var s=map.getSize();st('kaart '+Math.round(s.x)+'x'+Math.round(s.y));},1200);
+    setTimeout(function(){map.invalidateSize();},2600);
     window.addEventListener('resize',function(){map.invalidateSize();});
   }
 }catch(e){ st('FOUT: '+e.message); }

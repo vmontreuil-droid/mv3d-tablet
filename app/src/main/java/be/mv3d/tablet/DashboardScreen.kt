@@ -95,8 +95,6 @@ fun DashboardScreen(
                 }
                 NavItem(Icons.Outlined.Agriculture, "Mijn kraan", true) {}
                 NavItem(Icons.Outlined.Foundation, "Werven", false) {}
-                NavItem(Icons.Outlined.Map, "Kaart", false) {}
-                NavItem(Icons.Outlined.Folder, "Bestanden", false) {}
                 NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
                 Spacer(Modifier.weight(1f))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(12.dp)) {

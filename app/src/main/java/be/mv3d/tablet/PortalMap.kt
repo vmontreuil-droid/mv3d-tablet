@@ -37,6 +37,7 @@ fun PortalMap(
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                 settings.useWideViewPort = true
                 settings.loadWithOverviewMode = true
+                settings.allowFileAccess = true
                 WebView.setWebContentsDebuggingEnabled(true)
                 webViewClient = WebViewClient()
                 setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }
@@ -45,7 +46,8 @@ fun PortalMap(
                     fun openWerf(name: String) { Handler(Looper.getMainLooper()).post { onOpenWerf(name) } }
                 }, "Android")
                 tag = data
-                loadDataWithBaseURL("https://mv3d.be", html(data), "text/html", "utf-8", null)
+                // base = assets → Leaflet lokaal (leaflet.js/leaflet.css); tegels komen via https
+                loadDataWithBaseURL("file:///android_asset/", html(data), "text/html", "utf-8", null)
             }
         },
         update = { wv ->
@@ -73,8 +75,8 @@ private fun html(data: String): String = HTML_SHELL.replace("/*PTS*/[]", data)
 
 private const val HTML_SHELL = """<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="leaflet.css">
+<script src="leaflet.js"></script>
 <style>html,body,#map{height:100%;margin:0;background:#F6F8FB}
 .lp b{font-size:14px}.lp a{color:#E30613;font-weight:700;text-decoration:none}
 .pulse{width:16px;height:16px;border-radius:50%;background:#E30613;border:3px solid #fff;box-shadow:0 0 0 0 rgba(227,6,19,.6);animation:pl 1.6s infinite}

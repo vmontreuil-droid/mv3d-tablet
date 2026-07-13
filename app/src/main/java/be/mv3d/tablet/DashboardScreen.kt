@@ -86,6 +86,8 @@ fun DashboardScreen(
     var view by remember { mutableStateOf("werven") }  // "kraan" | "werven" — start op werven (kaart + tegels)
     var selectedWerf by remember { mutableStateOf<String?>(null) }
     val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
+    // menu klapt automatisch weer dicht na 5s
+    LaunchedEffect(navOpen) { if (navOpen) { kotlinx.coroutines.delay(5000); navOpen = false } }
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -128,11 +130,19 @@ fun DashboardScreen(
 
             // ── MAIN ──
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    if (!navOpen) Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(30.dp))  // logo zichtbaar bij gesloten sidebar
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
                     Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Spacer(Modifier.weight(1f))
+                    // actieve werf rechtsboven met rood bolletje
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(DRedTint).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DRed))
+                        Text(activeWerfName, color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 val sel = selectedWerf
                 if (sel != null) WerfDetail(werven.firstOrNull { it.name == sel }, sel, name, ov?.lat, ov?.lon) { selectedWerf = null }

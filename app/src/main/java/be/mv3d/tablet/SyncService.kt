@@ -87,7 +87,7 @@ class SyncService : Service() {
                 val nm = f.name ?: continue
                 val rel = if (prefix.isEmpty()) nm else "$prefix/$nm"
                 if (f.isDirectory) walk(f, rel, depth + 1)
-                else filesArr.put(JSONObject().put("path", rel).put("size", f.length()))
+                else filesArr.put(JSONObject().put("path", rel).put("size", f.length()).put("m", f.lastModified()))
             }
         }
         walk(tree, "", 0)

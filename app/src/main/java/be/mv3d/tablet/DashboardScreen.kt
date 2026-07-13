@@ -85,6 +85,7 @@ fun DashboardScreen(
     var navOpen by remember { mutableStateOf(false) }  // menu ingeklapt bij opstart
     var view by remember { mutableStateOf("kraan") }  // "kraan" | "werven"
     var selectedWerf by remember { mutableStateOf<String?>(null) }
+    val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -113,7 +114,7 @@ fun DashboardScreen(
                         Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(DOn)); Text("Online · $gs", color = DOn, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     Text("Actieve werf", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
-                    Text(werven.firstOrNull()?.name ?: "—", color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(activeWerfName, color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
                 NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
@@ -164,7 +165,7 @@ fun DashboardScreen(
                                 }
                             }
                             Fact("Kraancode", code, mono = true)
-                            Fact("Actieve werf", werven.firstOrNull()?.name ?: "—")
+                            Fact("Actieve werf", activeWerfName)
                             Fact("Werven", werven.size.toString())
                         }
                     }
@@ -185,6 +186,11 @@ fun DashboardScreen(
                                         // oranje bolletje op het werfadres (enkel als de werf een locatie heeft)
                                         if (w.lat != null && w.lon != null)
                                             Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DOrange)) }
+                                        // rode "Actief"-hoek als deze werf open staat in Unicontrol
+                                        if (w.current)
+                                            Box(Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(6.dp)).background(DRed).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                                                Text("ACTIEF", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                            }
                                     }
                                     Column(Modifier.padding(13.dp)) {
                                         Text(w.name, color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)

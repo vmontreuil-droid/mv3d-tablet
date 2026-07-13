@@ -95,7 +95,7 @@ fun DashboardScreen(
                     }
                 }
                 NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
-                NavItem(Icons.AutoMirrored.Outlined.Logout, "Uitloggen", false) { onLogout() }
+                NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(DLine))
 

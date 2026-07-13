@@ -189,7 +189,7 @@ class MainActivity : ComponentActivity() {
                         "home" -> DashboardScreen(
                             server = server,
                             code = code,
-                            machineName = machineName,
+                            machineName = machineName ?: "",
                             onSettings = { screen = "pair" },
                             onConvert = { b -> convBrand = b; convSources = emptyList(); convWerf = ""; convMsg = null; convDone = false; screen = "convert" },
                             onLogout = { scope.launch { prefs.clearAuth() } },

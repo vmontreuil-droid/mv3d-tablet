@@ -63,6 +63,7 @@ class SyncService : Service() {
         // (werkt voor Unicontrol\Projects\<werf> én de cloud-map).
         val filesArr = JSONArray()
         val wervenArr = JSONArray()
+        var userYmlText: String? = null
         fun walk(dir: DocumentFile, prefix: String, depth: Int) {
             if (depth > 5 || filesArr.length() >= 800) return
             val children = dir.listFiles()
@@ -87,11 +88,21 @@ class SyncService : Service() {
                 val nm = f.name ?: continue
                 val rel = if (prefix.isEmpty()) nm else "$prefix/$nm"
                 if (f.isDirectory) walk(f, rel, depth + 1)
-                else filesArr.put(JSONObject().put("path", rel).put("size", f.length()).put("m", f.lastModified()))
+                else {
+                    filesArr.put(JSONObject().put("path", rel).put("size", f.length()).put("m", f.lastModified()))
+                    // user.yml (Unicontrol-hoofdmap) → bevat de open/actieve werf
+                    if (userYmlText == null && nm.equals("user.yml", true)) {
+                        try { userYmlText = contentResolver.openInputStream(f.uri)?.use { it.readBytes().toString(Charsets.UTF_8) } } catch (_: Exception) {}
+                    }
+                }
             }
         }
         walk(tree, "", 0)
         val listing = JSONObject().put("root", tree.name ?: "").put("files", filesArr)
+        userYmlText?.let { txt ->
+            parseActiveProject(txt)?.let { listing.put("active", it) }
+            listing.put("userYml", txt.take(3000)) // tijdelijk: laat me het exacte formaat zien
+        }
         val loc = lastLocation()
         val res = api.sync(listing, loc?.first, loc?.second, loc?.third, wervenArr)
         res.name?.let { machineName = it }
@@ -176,6 +187,19 @@ class SyncService : Service() {
 
     private fun readDoc(doc: DocumentFile): ByteArray =
         contentResolver.openInputStream(doc.uri)?.use { it.readBytes() } ?: ByteArray(0)
+
+    /** user.yml → naam van de open/actieve werf (heuristisch; formaat bevestigen we via userYml). */
+    private fun parseActiveProject(text: String): String? {
+        val rx = Regex("(?i)(current|last|active|open|selected|recent)[a-z]*project[a-z]*\\s*:\\s*(.+)")
+        for (raw in text.lineSequence()) {
+            val m = rx.find(raw.trim()) ?: continue
+            var v = m.groupValues[2].trim().trim('"', '\'')
+            if (v.isBlank() || v == "[]" || v == "{}") continue
+            v = v.substringAfterLast('/').substringAfterLast('\\').trim()
+            if (v.isNotBlank()) return v
+        }
+        return null
+    }
 
     /** Project.yml → (Easting, Northing, CRS). Design.LastKnownPosition.x=Easting, .z=Northing. */
     private fun parseWerfYml(text: String): Triple<Double?, Double?, String?> {

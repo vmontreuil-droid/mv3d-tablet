@@ -155,8 +155,8 @@ fun DashboardScreen(
                 if (sel != null) WerfDetail(werven.firstOrNull { it.name == sel }, sel, name, ov?.lat, ov?.lon) { selectedWerf = null }
                 else {
                 // grote overzichtskaart bovenaan (enkel in Werven-view) — volledige breedte, met de werven erop
-                if (view == "werven") Card(Modifier.fillMaxWidth().height(400.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
-                    Column(Modifier.fillMaxSize()) {
+                if (view == "werven") Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                    Column {
                         Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
                             Text("Kraan & Werven", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -168,7 +168,7 @@ fun DashboardScreen(
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DRed)); Spacer(Modifier.size(4.dp))
                             Text(activeWerfName, color = DRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-                        PortalMap(name, ov?.lat, ov?.lon, werven, onOpenWerf = { selectedWerf = it }, modifier = Modifier.fillMaxWidth().weight(1f))
+                        PortalMap(name, ov?.lat, ov?.lon, werven, onOpenWerf = { selectedWerf = it }, modifier = Modifier.fillMaxWidth().height(360.dp))
                     }
                 }
 
@@ -260,8 +260,8 @@ private fun WerfDetail(w: Werf?, werfName: String, machineName: String, mLat: Do
         if (w.address.isNotBlank()) Text(w.address, color = DSoft, fontSize = 13.sp)
 
         // kaart van deze werf (+ de kraan)
-        Card(Modifier.fillMaxWidth().height(300.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
-            PortalMap(machineName, mLat, mLon, listOf(w), onOpenWerf = {}, modifier = Modifier.fillMaxSize())
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+            PortalMap(machineName, mLat, mLon, listOf(w), onOpenWerf = {}, modifier = Modifier.fillMaxWidth().height(300.dp))
         }
 
         // projecten (ontwerpen) in de werf

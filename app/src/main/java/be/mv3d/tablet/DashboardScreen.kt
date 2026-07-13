@@ -48,22 +48,27 @@ fun DashboardScreen(
 ) {
     var ov by remember { mutableStateOf<Overview?>(null) }
     var mapBmp by remember { mutableStateOf<ImageBitmap?>(null) }
-    val werfBmps = remember { mutableStateMapOf<Int, ImageBitmap>() }
+    val werfBmps = remember { mutableStateMapOf<String, ImageBitmap>() }
     LaunchedEffect(code) {
         val api = Api(server, code)
-        val o = withContext(Dispatchers.IO) { runCatching { api.overview() }.getOrNull() }
-        ov = o
-        val la = o?.lat; val lo = o?.lon
-        if (la != null && lo != null) {
-            val b = withContext(Dispatchers.IO) { api.aerial(la, lo, 1000, 340) }
-            if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { mapBmp = it }
-        }
-        o?.werven?.forEachIndexed { i, w ->
-            val wla = w.lat; val wlo = w.lon
-            if (wla != null && wlo != null) {
-                val b = withContext(Dispatchers.IO) { api.aerial(wla, wlo, 400, 240) }
-                if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[i] = it }
+        while (true) {   // elke 15s vernieuwen → nieuwe werven/GPS verschijnen vanzelf
+            val o = withContext(Dispatchers.IO) { runCatching { api.overview() }.getOrNull() }
+            if (o != null) {
+                ov = o
+                val la = o.lat; val lo = o.lon
+                if (mapBmp == null && la != null && lo != null) {
+                    val b = withContext(Dispatchers.IO) { api.aerial(la, lo, 1000, 340) }
+                    if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { mapBmp = it }
+                }
+                for (w in o.werven) {
+                    val wla = w.lat; val wlo = w.lon
+                    if (!werfBmps.containsKey(w.name) && wla != null && wlo != null) {
+                        val b = withContext(Dispatchers.IO) { api.aerial(wla, wlo, 400, 240) }
+                        if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[w.name] = it }
+                    }
+                }
             }
+            kotlinx.coroutines.delay(15_000)
         }
     }
 
@@ -151,7 +156,7 @@ fun DashboardScreen(
                             Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
                                 Column {
                                     Box(Modifier.fillMaxWidth().height(108.dp), contentAlignment = Alignment.Center) {
-                                        val wb = werfBmps[i]
+                                        val wb = werfBmps[w.name]
                                         if (wb != null) Image(wb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                         else Box(Modifier.fillMaxSize().background(DPanel2))
                                         Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)) }

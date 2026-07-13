@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -38,20 +39,20 @@ private data class Lg(
     val btn: String, val foot: String, val emailPh: String, val pwPh: String, val codePh: String, val err: String,
 )
 private val I18N = mapOf(
-    "nl" to Lg("MV3D · Machinebeheer", "Machineomgeving", "Kraantablet", "Aanmelden",
-        "Meld je aan met je MV3D-account om je werven en machines te beheren.",
+    "nl" to Lg("MV3D · Machineapp", "Machineapp", "Kraantablet", "Aanmelden",
+        "Meld je aan om je werven en machine te beheren.",
         "E-mail", "Kraancode", "E-mail", "Wachtwoord", "Kraancode", "Inloggen",
-        "MV3D-Manager · machineomgeving", "naam@bedrijf.be", "Je wachtwoord", "BV. K7F3A92X",
+        "MV3D-Manager · machineapp", "naam@bedrijf.be", "Je wachtwoord", "BV. K7F3A92X",
         "Aanmelden mislukt — controleer je gegevens."),
-    "fr" to Lg("MV3D · Gestion des machines", "Environnement machine", "Tablette grue", "Se connecter",
-        "Connectez-vous avec votre compte MV3D pour gérer vos chantiers et machines.",
+    "fr" to Lg("MV3D · Machineapp", "Machineapp", "Tablette grue", "Se connecter",
+        "Connectez-vous pour gérer vos chantiers et machine.",
         "E-mail", "Grue", "E-mail", "Mot de passe", "Code de grue", "Connexion",
-        "MV3D-Manager · environnement machine", "nom@entreprise.be", "Votre mot de passe", "EX. K7F3A92X",
+        "MV3D-Manager · machineapp", "nom@entreprise.be", "Votre mot de passe", "EX. K7F3A92X",
         "Échec de connexion — vérifiez vos informations."),
-    "en" to Lg("MV3D · Machine management", "Machine environment", "Crane tablet", "Sign in",
-        "Sign in with your MV3D account to manage your sites and machines.",
+    "en" to Lg("MV3D · Machine app", "Machine app", "Crane tablet", "Sign in",
+        "Sign in to manage your sites and machine.",
         "Email", "Crane", "Email", "Password", "Crane code", "Sign in",
-        "MV3D-Manager · machine environment", "name@company.com", "Your password", "E.G. K7F3A92X",
+        "MV3D-Manager · machine app", "name@company.com", "Your password", "E.G. K7F3A92X",
         "Sign-in failed — check your details."),
 )
 private fun lg(lang: String) = I18N[lang] ?: I18N["nl"]!!
@@ -78,7 +79,7 @@ fun LoginScreen(
     Surface(color = LBg) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 720.dp
-            Row(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize().statusBarsPadding()) {
                 if (wide) LeftPanel(t, Modifier.weight(1f).fillMaxHeight())
                 Box(Modifier.then(if (wide) Modifier.width(460.dp) else Modifier.fillMaxWidth()).fillMaxHeight().background(LPanel), contentAlignment = Alignment.Center) {
                     if (!wide) Canvas(Modifier.fillMaxSize()) { drawLoginDecor() }   // achtergrond-decor in staande stand
@@ -128,7 +129,7 @@ fun LoginScreen(
                         val skipTxt = when (lang) { "fr" -> "Passer pour l'instant"; "en" -> "Skip for now"; else -> "Voorlopig overslaan" }
                         Text(skipTxt, color = LMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 18.dp).clip(RoundedCornerShape(6.dp)).clickable { onSkip() }.padding(6.dp))
-                        Text(t.foot + " · © 2026 MV3D", color = LMuted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 24.dp))
+                        Text(t.foot + " · © 2026", color = LMuted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 24.dp))
                     }
                 }
             }

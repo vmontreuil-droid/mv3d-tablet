@@ -12,14 +12,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -227,22 +233,42 @@ private fun OverviewMap(server: String, code: String, mLat: Double?, mLon: Doubl
             val b = withContext(Dispatchers.IO) { Api(server, code).aerialBbox(west, south, east, north, 1000, h) }
             if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { bmp = it }
         }
-        val mb = bmp
-        if (mb != null) Image(mb, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
-        else Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Kaart laden…", color = DMuted, fontSize = 13.sp) }
+        // pinch-to-zoom + verschuiven met de vingers (dubbeltik = terug naar overzicht)
+        var scale by remember { mutableStateOf(1f) }
+        var off by remember { mutableStateOf(Offset.Zero) }
+        val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
+        Box(
+            Modifier.fillMaxSize().clipToBounds()
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val ns = (scale * zoom).coerceIn(1f, 6f)
+                        val maxX = (ns - 1f) * wPx / 2f; val maxY = (ns - 1f) * hPx / 2f
+                        val np = off + pan
+                        off = Offset(np.x.coerceIn(-maxX, maxX), np.y.coerceIn(-maxY, maxY))
+                        scale = ns
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { scale = 1f; off = Offset.Zero }) }
+        ) {
+            Box(Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale; translationX = off.x; translationY = off.y }) {
+                val mb = bmp
+                if (mb != null) Image(mb, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                else Box(Modifier.fillMaxSize().background(DPanel2), contentAlignment = Alignment.Center) { Text("Kaart laden…", color = DMuted, fontSize = 13.sp) }
 
-        val boxW = maxWidth; val boxH = maxHeight
-        for (p in pts) {
-            val fx = ((p.lon * cosLat - cVX) / spanVX + 0.5).coerceIn(0.03, 0.97).toFloat()
-            val fy = (0.5 - (p.lat - cVY) / spanVY).coerceIn(0.03, 0.97).toFloat()
-            val ring = if (p.machine) 20.dp else 16.dp
-            val inner = if (p.machine) 14.dp else 10.dp
-            val dot = if (p.machine) DGreen else DOrange
-            Box(
-                Modifier.offset(x = boxW * fx - ring / 2, y = boxH * fy - ring / 2)
-                    .size(ring).clip(RoundedCornerShape(50)).background(Color.White),
-                contentAlignment = Alignment.Center
-            ) { Box(Modifier.size(inner).clip(RoundedCornerShape(50)).background(dot)) }
+                val boxW = maxWidth; val boxH = maxHeight
+                for (p in pts) {
+                    val fx = ((p.lon * cosLat - cVX) / spanVX + 0.5).coerceIn(0.03, 0.97).toFloat()
+                    val fy = (0.5 - (p.lat - cVY) / spanVY).coerceIn(0.03, 0.97).toFloat()
+                    val ring = if (p.machine) 20.dp else 16.dp
+                    val inner = if (p.machine) 14.dp else 10.dp
+                    val dot = if (p.machine) DGreen else DOrange
+                    Box(
+                        Modifier.offset(x = boxW * fx - ring / 2, y = boxH * fy - ring / 2)
+                            .size(ring).clip(RoundedCornerShape(50)).background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) { Box(Modifier.size(inner).clip(RoundedCornerShape(50)).background(dot)) }
+                }
+            }
         }
     }
 }

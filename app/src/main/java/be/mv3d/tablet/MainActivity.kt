@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val code by prefs.codeFlow.collectAsState(initial = "")
                 val tree by prefs.treeFlow.collectAsState(initial = "")
+                val server by prefs.serverFlow.collectAsState(initial = "https://mv3d.be")
 
                 var screen by remember { mutableStateOf("home") } // "home" | "pair"
                 var codeField by remember(code) { mutableStateOf(code) }
@@ -185,13 +186,13 @@ class MainActivity : ComponentActivity() {
                     if (authToken.isBlank()) {
                         LoginScreen(lang = lang, onLang = { scope.launch { prefs.setLang(it) } }, busy = loginBusy, error = loginError, onEmailLogin = doEmailLogin, onCodeLogin = doCodeLogin, onSkip = { scope.launch { prefs.setAuth("guest", "") } })
                     } else when (screen) {
-                        "home" -> HomeScreen(
-                            version = "build ${BuildConfig.VERSION_CODE}",
-                            coupled = code.isNotBlank() && tree.isNotBlank(),
+                        "home" -> DashboardScreen(
+                            server = server,
                             code = code,
                             machineName = machineName,
-                            onPair = { screen = "pair" },
+                            onSettings = { screen = "pair" },
                             onConvert = { b -> convBrand = b; convSources = emptyList(); convWerf = ""; convMsg = null; convDone = false; screen = "convert" },
+                            onLogout = { scope.launch { prefs.clearAuth() } },
                         )
                         "convert" -> ConverterScreen(
                             brand = convBrand,

@@ -18,6 +18,8 @@ data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val na
 /** Eén geconverteerd bestand. dir = "project" (→ Projects/<werf>/) of "coordsys" (→ CoordinateSystems/). */
 data class ConvOut(val path: String, val text: String, val dir: String = "project")
 data class ConvResult(val werf: String, val folder: String, val surfaces: Int, val lines: Int, val files: List<ConvOut>)
+data class Werf(val name: String, val address: String, val lat: Double?, val lon: Double?, val files: Int, val active: Boolean)
+data class Overview(val name: String, val guidance: String, val code: String, val lat: Double?, val lon: Double?, val werven: List<Werf>)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
 class Api(private val server: String, private val code: String) {
@@ -110,6 +112,28 @@ class Api(private val server: String, private val code: String) {
             val token = o.optString("access_token")
             return if (token.isNotBlank()) token to (o.optJSONObject("user")?.optString("email") ?: email.trim()) else null
         }
+    }
+
+    /** Overzicht van de kraan (naam, systeem, GPS, werven) voor de machineapp. */
+    fun overview(): Overview? {
+        http.newCall(Request.Builder().url("$server/api/machines/overview?code=$code").build()).execute().use { r ->
+            if (!r.isSuccessful) return null
+            val o = JSONObject(r.body?.string() ?: "{}")
+            fun dbl(k: String): Double? = if (o.isNull(k)) null else o.optDouble(k).let { if (it.isNaN()) null else it }
+            val werven = ArrayList<Werf>()
+            o.optJSONArray("werven")?.let { arr -> for (i in 0 until arr.length()) { val w = arr.getJSONObject(i)
+                fun wd(k: String): Double? = if (w.isNull(k)) null else w.optDouble(k).let { if (it.isNaN()) null else it }
+                werven.add(Werf(w.optString("name"), w.optString("address"), wd("lat"), wd("lon"), w.optInt("files"), w.optBoolean("active"))) } }
+            return Overview(o.optString("name"), o.optString("guidance"), o.optString("code"), dbl("lat"), dbl("lon"), werven)
+        }
+    }
+
+    /** Satelliet-luchtfoto (ArcGIS World Imagery) rond een GPS-punt → JPEG-bytes. */
+    fun aerial(lat: Double, lon: Double, w: Int, h: Int): ByteArray? {
+        val dLon = 0.006; val dLat = dLon * (h.toDouble() / w) * 0.62
+        val bbox = "${lon - dLon},${lat - dLat},${lon + dLon},${lat + dLat}"
+        val url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=$bbox&bboxSR=4326&imageSR=3857&size=$w,$h&format=jpg&f=image"
+        return try { http.newCall(Request.Builder().url(url).build()).execute().use { if (!it.isSuccessful) null else it.body?.bytes() } } catch (_: Exception) { null }
     }
 
     /** Kraancode controleren: bestaat de machine? (via /api/machines/sync). */

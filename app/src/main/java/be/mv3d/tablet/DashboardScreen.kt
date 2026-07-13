@@ -31,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -88,6 +89,8 @@ fun DashboardScreen(
     val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
     // menu klapt automatisch weer dicht na 5s
     LaunchedEffect(navOpen) { if (navOpen) { kotlinx.coroutines.delay(5000); navOpen = false } }
+    var showQr by remember { mutableStateOf(false) }
+    val qrBig = remember(code) { qrBitmap(code, 640) }
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -125,11 +128,11 @@ fun DashboardScreen(
                 // QR-code van de kraancode (scannen om te koppelen)
                 val qr = remember(code) { qrBitmap(code, 240) }
                 if (qr != null) {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).clickable { showQr = true }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White).padding(8.dp)) {
                             Image(qr, "QR-code kraancode", Modifier.size(132.dp))
                         }
-                        Text("Scan om te koppelen", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                        Text("Tik om te vergroten", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     }
                 }
                 NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
@@ -139,14 +142,17 @@ fun DashboardScreen(
             }
 
             // ── MAIN ──
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                // sticky bovenbalk (blijft staan tijdens scrollen)
+                Row(Modifier.fillMaxWidth().background(DBg).padding(horizontal = 24.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     if (!navOpen) Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(30.dp))  // logo zichtbaar bij gesloten sidebar
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
                     Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DLine))
+                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 val sel = selectedWerf
                 if (sel != null) WerfDetail(werven.firstOrNull { it.name == sel }, sel, name, ov?.lat, ov?.lon) { selectedWerf = null }
                 else {
@@ -220,7 +226,21 @@ fun DashboardScreen(
                 // (Bestandsconvertor komt later terug onder de Convertor-tab / bij nieuwe werf.)
                 Spacer(Modifier.height(8.dp))
                 }
+                }
             }
+        }
+    }
+
+    // QR groot in het midden van het scherm (makkelijk scannen)
+    if (showQr && qrBig != null) Dialog(onDismissRequest = { showQr = false }) {
+        Column(
+            Modifier.clip(RoundedCornerShape(24.dp)).background(Color.White).clickable { showQr = false }.padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text("Kraancode", color = DMuted, fontSize = 13.sp)
+            Text(code, color = DRed, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Image(qrBig, "QR-code kraancode", Modifier.size(300.dp))
+            Text("Tik om te sluiten", color = DMuted, fontSize = 12.sp)
         }
     }
 }

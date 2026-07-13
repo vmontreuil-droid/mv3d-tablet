@@ -152,7 +152,7 @@ fun DashboardScreen(
                     Column {
                         Row(Modifier.fillMaxWidth().padding(14.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.LocationOn, null, tint = DGreen, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
-                            Text("Kraan & werven op de kaart", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Kraan & Werven", color = DInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.weight(1f))
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(DGreen)); Spacer(Modifier.size(4.dp))
                             Text("Kraan", color = DMuted, fontSize = 11.sp); Spacer(Modifier.size(10.dp))

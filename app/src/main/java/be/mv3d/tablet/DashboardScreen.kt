@@ -87,8 +87,6 @@ fun DashboardScreen(
     var view by remember { mutableStateOf("werven") }  // "kraan" | "werven" — start op werven (kaart + tegels)
     var selectedWerf by remember { mutableStateOf<String?>(null) }
     val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
-    // menu klapt automatisch weer dicht na 5s
-    LaunchedEffect(navOpen) { if (navOpen) { kotlinx.coroutines.delay(5000); navOpen = false } }
     var showQr by remember { mutableStateOf(false) }
     val qrBig = remember(code) { qrBitmap(code, 640) }
 

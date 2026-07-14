@@ -113,7 +113,7 @@ class SyncService : Service() {
         }
         userYmlText?.let { txt ->
             parseActiveProject(txt)?.let { listing.put("active", it) }
-            listing.put("userYml", txt.take(3000)) // tijdelijk: laat me het exacte formaat zien
+            listing.put("userYml", txt.take(30000)) // tijdelijk: laat me het exacte formaat zien
         }
         val loc = lastLocation()
         val res = api.sync(listing, loc?.first, loc?.second, loc?.third, wervenArr)

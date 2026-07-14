@@ -129,10 +129,14 @@ try{
         else { m.bindPopup('<div class="lp"><b>'+p.name+'</b>'+(p.active?' <span style="color:#E30613">&bull; actief</span>':'')+'<br><a href="#" onclick="Android.openWerf(\''+esc(p.name)+'\');return false;">Open werf &rarr;</a></div>'); }
         b.push([p.lat,p.lon]);
       });
-      if(!didFit && b.length){ if(b.length==1){map.setView(b[0],15);} else {map.fitBounds(b,{padding:[45,45]});} didFit=true; }
+      // her-inzoomen zodra de set werven verandert (nieuwe/verwijderde werf), niet bij
+      // GPS-jitter van de kraan → signatuur op de werven (kraan telt niet mee)
+      var sig = pts.filter(function(p){return !p.machine;}).map(function(p){return p.name+'|'+p.lat+'|'+p.lon;}).sort().join(';');
+      if(b.length && sig!==window.__sig){
+        window.__sig = sig;
+        if(b.length==1){ map.setView(b[0],15); } else { map.fitBounds(b,{padding:[45,45]}); }
+      }
       map.invalidateSize();
-      var s=map.getSize();
-      st('OK · '+pts.length+' pt · '+Math.round(s.x)+'x'+Math.round(s.y));
     };
     setData(/*PTS*/$data);
     setTimeout(function(){map.invalidateSize();},300);

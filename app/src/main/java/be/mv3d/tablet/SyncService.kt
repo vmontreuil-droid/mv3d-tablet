@@ -170,7 +170,12 @@ class SyncService : Service() {
                         if (ymlDoc != null) {
                             val txt = contentResolver.openInputStream(ymlDoc.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
                             if (txt != null) {
-                                val patched = Regex("(?m)^(\\s*CoordinateSystems-[A-Za-z0-9-]+:[ \\t]*)false[ \\t]*$").replace(txt) { it.groupValues[1] + "true" }
+                                // enkel België + buurlanden aanzetten; de rest UIT (anders probeert Unicontrol
+                                // de geoïdes van de hele wereld te downloaden → faalt → "systeem niet gevonden")
+                                val keep = setOf("BE", "NL", "FR", "LU")
+                                val patched = Regex("(?m)^(\\s*CoordinateSystems-)([A-Za-z0-9-]+)(:[ \\t]*)(?:true|false)[ \\t]*$").replace(txt) { m ->
+                                    m.groupValues[1] + m.groupValues[2] + m.groupValues[3] + (if (m.groupValues[2].uppercase() in keep) "true" else "false")
+                                }
                                 contentResolver.openOutputStream(ymlDoc.uri, "wt")?.use { it.write(patched.toByteArray(Charsets.UTF_8)) }
                                 done = true
                             }

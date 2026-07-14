@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -182,6 +183,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // net ingelogd met een kraancode maar nog geen Unicontrol-map → toon de installatie-wizard
+                var setupRouted by remember { mutableStateOf(false) }
+                LaunchedEffect(authToken, code, tree) {
+                    if (!setupRouted && authToken.isNotBlank() && authToken != "guest" && code.isNotBlank() && tree.isBlank()) {
+                        screen = "setup"; setupRouted = true
+                    }
+                }
+
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     if (authToken.isBlank()) {
                         LoginScreen(lang = lang, onLang = { scope.launch { prefs.setLang(it) } }, busy = loginBusy, error = loginError, onEmailLogin = doEmailLogin, onCodeLogin = doCodeLogin, onSkip = { scope.launch { prefs.setAuth("guest", "") } })
@@ -211,6 +220,16 @@ class MainActivity : ComponentActivity() {
                             onConvert = { doConvert() },
                             onLaunchUni = { launchUnicontrol() },
                         )
+                        "setup" -> SetupWizard(
+                            code = code, folderLabel = folderLabel(tree),
+                            running = running, version = "build ${BuildConfig.VERSION_CODE}",
+                            onScan = { scan.launch(ScanOptions().setOrientationLocked(false).setBeepEnabled(false).setPrompt("Scan de koppelcode-QR")) },
+                            onPickFolder = { pickTree.launch(null) },
+                            onRequestPerms = { requestRuntimePerms(askPerms) },
+                            onStartSync = { syncStarting = true; requestRuntimePerms(askPerms); startSvc(SyncService::class.java) },
+                            onOpenUnicontrol = { launchUnicontrol() },
+                            onDone = { screen = "home" },
+                        )
                         else -> PairingScreen(
                             code = code, folderLabel = folderLabel(tree),
                             coupled = code.isNotBlank() && tree.isNotBlank(),
@@ -226,6 +245,7 @@ class MainActivity : ComponentActivity() {
                             codeField = codeField,
                             authEmail = authEmail,
                             onLogout = { scope.launch { prefs.clearAuth() } },
+                            onWizard = { screen = "setup" },
                         )
                     }
                 }
@@ -494,7 +514,7 @@ fun PairingScreen(
     syncBusy: Boolean = false, version: String = "",
     updateAvailable: String? = null, updateBusy: Boolean = false, updateError: String? = null, onUpdate: () -> Unit = {},
     codeField: String = code,
-    authEmail: String = "", onLogout: () -> Unit = {},
+    authEmail: String = "", onLogout: () -> Unit = {}, onWizard: () -> Unit = {},
 ) {
     val green = Color(0xFF43C98A)
     Column(
@@ -504,7 +524,8 @@ fun PairingScreen(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Terug", tint = MaterialTheme.colorScheme.onSurface) }
             Logo(40)
-            Column { Text("MV3D", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Machine koppelen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column(Modifier.weight(1f)) { Text("MV3D", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Machine koppelen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            OutlinedButton(onWizard) { Icon(Icons.Outlined.Checklist, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Wizard") }
         }
 
         if (updateAvailable != null) {
@@ -554,6 +575,81 @@ fun PairingScreen(
             OutlinedButton(onLogout, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Logout, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text("Uitloggen") }
         }
         Text("MV3D · $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+    }
+}
+
+// ── Eenmalige installatie-wizard (lichte platform-stijl) ──
+private val WInk = Color(0xFF1A1D26); private val WSoft = Color(0xFF586173); private val WMuted = Color(0xFF8B93A3)
+private val WLine = Color(0xFFE9EDF3); private val WRed = Color(0xFFE30613); private val WGreen = Color(0xFF12A150)
+private val WRedTint = Color(0xFFFFF5F6); private val WPanel = Color(0xFFF6F8FB)
+
+@Composable
+fun SetupWizard(
+    code: String, folderLabel: String, running: Boolean, version: String,
+    onScan: () -> Unit, onPickFolder: () -> Unit, onRequestPerms: () -> Unit,
+    onStartSync: () -> Unit, onOpenUnicontrol: () -> Unit, onDone: () -> Unit,
+) {
+    var permsAsked by remember { mutableStateOf(false) }
+    val codeOk = code.isNotBlank(); val folderOk = folderLabel.isNotBlank()
+    val coreOk = codeOk && folderOk && running
+
+    Surface(color = Color(0xFFFAFBFC), modifier = Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(44.dp))
+                Column {
+                    Text("Tablet installeren", color = WInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("Eenmalige setup — daarna draait alles vanzelf.", color = WMuted, fontSize = 13.sp)
+                }
+            }
+            SetupStep(1, "Koppelcode", "Koppel deze tablet aan de kraan. Scan de QR-code uit het portaal of vul de code in.",
+                codeOk, if (codeOk) "Ingesteld: $code" else null, if (codeOk) null else "QR-code scannen", onScan, true)
+            SetupStep(2, "Unicontrol-map kiezen", "Wijs één keer de Unicontrol-hoofdmap aan (die met de map Projects). Android vraagt dit zelf — dit kan niet automatisch.",
+                folderOk, if (folderOk) "Gekozen: $folderLabel" else null, if (folderOk) "Andere map kiezen" else "Map kiezen", onPickFolder, true)
+            SetupStep(3, "Toestemmingen", "Sta locatie en meldingen toe, zodat de kraan zijn positie toont en de sync op de achtergrond blijft draaien.",
+                permsAsked, if (permsAsked) "Gevraagd" else null, "Toestemmingen geven", { permsAsked = true; onRequestPerms() }, true)
+            SetupStep(4, "Sync starten", "Zet de synchronisatie aan. Werven en bestanden lopen dan automatisch heen en weer.",
+                running, if (running) "Sync actief" else null, if (running) null else "Sync starten", onStartSync, codeOk && folderOk)
+            SetupStep(5, "Coördinatensystemen", "Sluit Unicontrol volledig af, activeer de systemen op het portaal en heropen Unicontrol — hij downloadt ze dan zelf (BE/NL/FR/LU).",
+                false, null, "Unicontrol openen", onOpenUnicontrol, running)
+
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (coreOk) WRed else WPanel).clickable { onDone() }.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+                Text(if (coreOk) "Klaar — naar dashboard" else "Overslaan naar dashboard", color = if (coreOk) Color.White else WSoft, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("MV3D · $version", color = WMuted, fontSize = 11.5.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp))
+        }
+    }
+}
+
+@Composable
+private fun SetupStep(
+    n: Int, title: String, desc: String, done: Boolean,
+    doneNote: String?, actionLabel: String?, onAction: () -> Unit, enabled: Boolean,
+) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White).border(1.dp, WLine, RoundedCornerShape(14.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(if (done) WGreen else WRedTint), contentAlignment = Alignment.Center) {
+                if (done) Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                else Text("$n", color = WRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(title, color = WInk, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        }
+        Text(desc, color = WSoft, fontSize = 13.sp, lineHeight = 18.sp)
+        if (doneNote != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icons.Outlined.CheckCircle, null, tint = WGreen, modifier = Modifier.size(16.dp))
+            Text(doneNote, color = WGreen, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (actionLabel != null) Box(
+            Modifier.clip(RoundedCornerShape(10.dp)).background(if (enabled) WRed else WPanel)
+                .then(if (enabled) Modifier.clickable { onAction() } else Modifier)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) { Text(actionLabel, color = if (enabled) Color.White else WMuted, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
     }
 }
 

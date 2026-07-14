@@ -155,6 +155,25 @@ class SyncService : Service() {
                         }
                         results.add(c.id to null)
                     }
+                    "enablecs" -> {
+                        // alle CoordinateSystems-XX: false → true in User.yml (Unicontrol-hoofdmap)
+                        // zodat Unicontrol de landen-systemen (incl. Belgische geoïde) zelf binnenhaalt
+                        val uniStr = prefs.uni()
+                        var done = false
+                        if (uniStr.isNotBlank()) {
+                            val uniRoot = DocumentFile.fromTreeUri(this, Uri.parse(uniStr))
+                            val ymlDoc = uniRoot?.listFiles()?.firstOrNull { it.isFile && it.name?.equals("user.yml", true) == true }
+                            if (ymlDoc != null) {
+                                val txt = contentResolver.openInputStream(ymlDoc.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                                if (txt != null) {
+                                    val patched = Regex("(?m)^(\\s*CoordinateSystems-[A-Za-z0-9-]+:[ \\t]*)false[ \\t]*$").replace(txt) { it.groupValues[1] + "true" }
+                                    contentResolver.openOutputStream(ymlDoc.uri, "wt")?.use { it.write(patched.toByteArray(Charsets.UTF_8)) }
+                                    done = true
+                                }
+                            }
+                        }
+                        results.add(c.id to (if (done) null else "User.yml niet gevonden (kies de Unicontrol-map)"))
+                    }
                     else -> results.add(c.id to "onbekend commando ${c.kind}")
                 }
             } catch (e: Exception) { results.add(c.id to (e.message ?: "fout")) }

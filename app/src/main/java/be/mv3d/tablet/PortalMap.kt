@@ -49,56 +49,37 @@ fun PortalMap(
     val data = ptsJson(machineName, mLat, mLon, werven)
     val css = remember { readAsset(ctx, "leaflet.css") }
     val js = remember { readAsset(ctx, "leaflet.js") }
-    var status by remember { mutableStateOf("kaart laden…") }
     val main = remember { Handler(Looper.getMainLooper()) }
 
-    Box(modifier) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { c ->
-                WebView(c).apply {
-                    layoutParams = android.view.ViewGroup.LayoutParams(
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
-                    postDelayed({ main.post { status = "view ${width}x${height}px" } }, 2000)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                    settings.allowFileAccess = true
-                    setBackgroundColor(0xFFF6F8FB.toInt())
-                    WebView.setWebContentsDebuggingEnabled(true)
-                    webViewClient = WebViewClient()
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(m: ConsoleMessage): Boolean {
-                            main.post { status = "JS ${m.lineNumber()}: ${m.message()}" }
-                            return true
-                        }
-                    }
-                    setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }
-                    addJavascriptInterface(object {
-                        @JavascriptInterface fun openWerf(name: String) { main.post { onOpenWerf(name) } }
-                        @JavascriptInterface fun status(s: String) { main.post { status = s } }
-                    }, "Android")
-                    tag = data
-                    loadDataWithBaseURL("https://mv3d.be", buildHtml(data, css, js), "text/html", "utf-8", null)
-                }
-            },
-            update = { wv ->
-                if (wv.tag != data) {
-                    wv.tag = data
-                    wv.evaluateJavascript("window.setData && setData($data);", null)
-                }
-            },
-        )
-        Text(
-            status,
-            color = Color.White,
-            fontSize = 10.sp,
-            modifier = Modifier.align(Alignment.BottomStart)
-                .background(Color(0xCC000000)).padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
+    AndroidView(
+        modifier = modifier,
+        factory = { c ->
+            WebView(c).apply {
+                layoutParams = android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                settings.allowFileAccess = true
+                setBackgroundColor(0xFFF6F8FB.toInt())
+                webViewClient = WebViewClient()
+                setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }
+                addJavascriptInterface(object {
+                    @JavascriptInterface fun openWerf(name: String) { main.post { onOpenWerf(name) } }
+                }, "Android")
+                tag = data
+                loadDataWithBaseURL("https://mv3d.be", buildHtml(data, css, js), "text/html", "utf-8", null)
+            }
+        },
+        update = { wv ->
+            if (wv.tag != data) {
+                wv.tag = data
+                wv.evaluateJavascript("window.setData && setData($data);", null)
+            }
+        },
+    )
 }
 
 private fun readAsset(ctx: Context, name: String): String =

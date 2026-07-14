@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
     }
 
-    /** Schrijft het project in <Unicontrol>/Projects/<werf>/ en de .wkt in
+    /** Schrijft het project in <Unicontrol>/CloudProjects/<werf>/ en de .wkt in
      *  <Unicontrol>/CoordinateSystems/ (+ /cloud/), ongeacht welke map gekozen is. */
     private fun writeUnicontrolProject(uniTreeUri: Uri, werf: String, files: List<ConvOut>) {
         val root = DocumentFile.fromTreeUri(this, uniTreeUri) ?: throw RuntimeException("Unicontrol-map ongeldig")
@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
             root.findFile("Unicontrol")?.isDirectory == true -> root.findFile("Unicontrol")!!
             else -> root   // ze kozen Unicontrol zelf, Projects, of de opslag-root
         }
-        val projects = if (root.name.equals("Projects", true)) root else childDir(uniRoot, "Projects")
+        val projects = if (root.name.equals("CloudProjects", true)) root else childDir(uniRoot, "CloudProjects")
         val werfDir = childDir(projects, werf)
 
         var coordSys: DocumentFile? = null

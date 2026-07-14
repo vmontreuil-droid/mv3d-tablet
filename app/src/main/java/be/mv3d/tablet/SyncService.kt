@@ -124,6 +124,15 @@ class SyncService : Service() {
             catch (e: Exception) { lastStatus = "download ${f.name}: ${e.message}" }
         }
 
+        // portaal → tablet: werven uit het portaal aanmaken (CloudProjects/<werf>/Project.yml),
+        // enkel als de map nog niet bestaat (anders overschrijven we een bestaand project niet)
+        for (c in res.creates) {
+            try {
+                if (findInTree(tree, "${c.folder}/${c.name}") == null)
+                    writeIntoTree(tree, c.folder, c.name, c.text.toByteArray(Charsets.UTF_8))
+            } catch (e: Exception) { lastStatus = "create ${c.name}: ${e.message}" }
+        }
+
         val results = ArrayList<Pair<String, String?>>()
         for (c in res.commands) {
             try {

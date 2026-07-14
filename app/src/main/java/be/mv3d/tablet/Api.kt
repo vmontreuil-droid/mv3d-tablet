@@ -106,8 +106,8 @@ class Api(private val server: String, private val code: String) {
         } catch (_: Exception) { null }
     }
 
-    /** Supabase e-mail/wachtwoord-login → (access_token, e-mail). */
-    fun login(email: String, password: String): Pair<String, String>? {
+    /** Supabase e-mail/wachtwoord-login → (access_token, refresh_token, e-mail). */
+    fun login(email: String, password: String): Triple<String, String, String>? {
         val cfg = realtimeConfig() ?: return null
         val body = JSONObject().put("email", email.trim()).put("password", password)
         val req = Request.Builder().url("${cfg.first}/auth/v1/token?grant_type=password")
@@ -117,7 +117,8 @@ class Api(private val server: String, private val code: String) {
             if (!r.isSuccessful) return null
             val o = JSONObject(r.body?.string() ?: "{}")
             val token = o.optString("access_token")
-            return if (token.isNotBlank()) token to (o.optJSONObject("user")?.optString("email") ?: email.trim()) else null
+            val refresh = o.optString("refresh_token")
+            return if (token.isNotBlank()) Triple(token, refresh, o.optJSONObject("user")?.optString("email") ?: email.trim()) else null
         }
     }
 

@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
 
                 // ── Login (MV3D-account) ──
                 val authToken by prefs.authFlow.collectAsState(initial = "")
+                val authRefresh by prefs.authRefreshFlow.collectAsState(initial = "")
                 val authEmail by prefs.authEmailFlow.collectAsState(initial = "")
                 val storedLang by prefs.langFlow.collectAsState(initial = "")
                 val lang = storedLang.ifBlank { java.util.Locale.getDefault().language.let { if (it in listOf("nl", "fr", "en")) it else "nl" } }
@@ -170,7 +171,7 @@ class MainActivity : ComponentActivity() {
                     scope.launch {
                         val res = withContext(Dispatchers.IO) { runCatching { Api(prefs.server(), "").login(em, p) }.getOrNull() }
                         loginBusy = false
-                        if (res != null) prefs.setAuth(res.first, res.second) else loginError = loginErrorText(lang)
+                        if (res != null) prefs.setAuth(res.first, res.third, res.second) else loginError = loginErrorText(lang)
                     }
                 }
                 val doCodeLogin: (String) -> Unit = { c ->
@@ -183,10 +184,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // net ingelogd met een kraancode maar nog geen Unicontrol-map → toon de installatie-wizard
+                // machinist net ingelogd met een kraancode maar nog geen Unicontrol-map → installatie-wizard
                 var setupRouted by remember { mutableStateOf(false) }
                 LaunchedEffect(authToken, code, tree) {
-                    if (!setupRouted && authToken.isNotBlank() && authToken != "guest" && code.isNotBlank() && tree.isBlank()) {
+                    if (!setupRouted && authToken.startsWith("crane:") && code.isNotBlank() && tree.isBlank()) {
                         screen = "setup"; setupRouted = true
                     }
                 }
@@ -202,6 +203,7 @@ class MainActivity : ComponentActivity() {
                             // rol uit het token: crane:CODE of overgeslagen = machinist, echt Supabase-token = beheerder
                             beheerder = authToken.isNotBlank() && !authToken.startsWith("crane:") && authToken != "guest",
                             token = authToken,
+                            refresh = authRefresh,
                             authEmail = authEmail,
                             onSettings = { screen = "pair" },
                             onConvert = { b -> convBrand = b; convSources = emptyList(); convWerf = ""; convMsg = null; convDone = false; screen = "convert" },

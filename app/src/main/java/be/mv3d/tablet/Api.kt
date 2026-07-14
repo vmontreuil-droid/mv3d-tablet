@@ -14,7 +14,7 @@ data class Command(
     val id: String, val kind: String, val path: String?, val newPath: String?,
     val fileName: String?, val uploadUrl: String?, val downloadUrl: String?
 )
-data class CreateFile(val folder: String, val name: String, val text: String)
+data class CreateFile(val folder: String, val name: String, val text: String, val url: String)
 data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val name: String?, val commands: List<Command>, val creates: List<CreateFile>)
 /** Eén geconverteerd bestand. dir = "project" (→ Projects/<werf>/) of "coordsys" (→ CoordinateSystems/). */
 data class ConvOut(val path: String, val text: String, val dir: String = "project")
@@ -50,7 +50,7 @@ class Api(private val server: String, private val code: String) {
             val cmds = ArrayList<Command>()
             o.optJSONArray("commands")?.let { for (i in 0 until it.length()) { val c = it.getJSONObject(i); cmds.add(Command(c.optString("id"), c.optString("kind"), c.optString("path").ifEmpty { null }, c.optString("new_path").ifEmpty { null }, c.optString("file_name").ifEmpty { null }, c.optString("upload_url").ifEmpty { null }, c.optString("download_url").ifEmpty { null })) } }
             val creates = ArrayList<CreateFile>()
-            o.optJSONArray("creates")?.let { for (i in 0 until it.length()) { val c = it.getJSONObject(i); creates.add(CreateFile(c.optString("folder"), c.optString("name"), c.optString("text"))) } }
+            o.optJSONArray("creates")?.let { for (i in 0 until it.length()) { val c = it.getJSONObject(i); creates.add(CreateFile(c.optString("folder"), c.optString("name"), c.optString("text"), c.optString("url"))) } }
             return SyncResult(files, o.optString("guidance_system").ifEmpty { null }, o.optString("name").ifEmpty { null }, cmds, creates)
         }
     }

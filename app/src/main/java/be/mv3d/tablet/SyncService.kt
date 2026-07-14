@@ -128,8 +128,10 @@ class SyncService : Service() {
         // enkel als de map nog niet bestaat (anders overschrijven we een bestaand project niet)
         for (c in res.creates) {
             try {
-                if (findInTree(tree, "${c.folder}/${c.name}") == null)
-                    writeIntoTree(tree, c.folder, c.name, c.text.toByteArray(Charsets.UTF_8))
+                if (findInTree(tree, "${c.folder}/${c.name}") == null) {
+                    val bytes = if (c.url.isNotBlank()) api.download(c.url) else c.text.toByteArray(Charsets.UTF_8)
+                    writeIntoTree(tree, c.folder, c.name, bytes)
+                }
             } catch (e: Exception) { lastStatus = "create ${c.name}: ${e.message}" }
         }
 

@@ -28,6 +28,8 @@ class Api(private val server: String, private val code: String) {
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        // meer gelijktijdige verzoeken per host → werf-luchtfoto's laden veel sneller
+        .dispatcher(okhttp3.Dispatcher().apply { maxRequests = 48; maxRequestsPerHost = 24 })
         .build()
 
     /** POST /api/machines/sync — heartbeat + mappenlijst + GPS; geeft bestanden + commando's terug. */

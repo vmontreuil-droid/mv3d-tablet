@@ -113,7 +113,6 @@ class SyncService : Service() {
         }
         userYmlText?.let { txt ->
             parseActiveProject(txt)?.let { listing.put("active", it) }
-            listing.put("userYml", txt.take(30000)) // tijdelijk: laat me het exacte formaat zien
         }
         val loc = lastLocation()
         val res = api.sync(listing, loc?.first, loc?.second, loc?.third, wervenArr)
@@ -200,15 +199,15 @@ class SyncService : Service() {
     private fun readDoc(doc: DocumentFile): ByteArray =
         contentResolver.openInputStream(doc.uri)?.use { it.readBytes() } ?: ByteArray(0)
 
-    /** user.yml → naam van de open/actieve werf (heuristisch; formaat bevestigen we via userYml). */
+    /** user.yml → naam van de open/actieve werf. Staat onder JobSetup: Project: Projects/<werf>. */
     private fun parseActiveProject(text: String): String? {
-        val rx = Regex("(?i)(current|last|active|open|selected|recent)[a-z]*project[a-z]*\\s*:\\s*(.+)")
         for (raw in text.lineSequence()) {
-            val m = rx.find(raw.trim()) ?: continue
-            var v = m.groupValues[2].trim().trim('"', '\'')
-            if (v.isBlank() || v == "[]" || v == "{}") continue
-            v = v.substringAfterLast('/').substringAfterLast('\\').trim()
-            if (v.isNotBlank()) return v
+            val t = raw.trim()
+            if (t.startsWith("Project:")) {
+                val v = t.removePrefix("Project:").trim().trim('"', '\'')
+                    .substringAfterLast('/').substringAfterLast('\\').trim()
+                if (v.isNotBlank() && v != "[]" && v != "{}") return v
+            }
         }
         return null
     }

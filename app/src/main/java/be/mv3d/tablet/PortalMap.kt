@@ -57,6 +57,11 @@ fun PortalMap(
             modifier = Modifier.fillMaxSize(),
             factory = { c ->
                 WebView(c).apply {
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    postDelayed({ main.post { status = "view ${width}x${height}px" } }, 2000)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE

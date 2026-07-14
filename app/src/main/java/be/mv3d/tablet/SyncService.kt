@@ -99,6 +99,18 @@ class SyncService : Service() {
         }
         walk(tree, "", 0)
         val listing = JSONObject().put("root", tree.name ?: "").put("files", filesArr)
+        // user.yml (open/actieve werf) staat in de Unicontrol-hoofdmap. Die is meestal een
+        // aparte SAF-tree (uniTree) dan de sync-map (Projects) → daar apart uitlezen.
+        if (userYmlText == null) {
+            val uniStr = prefs.uni()
+            if (uniStr.isNotBlank()) {
+                try {
+                    val uniRoot = DocumentFile.fromTreeUri(this, Uri.parse(uniStr))
+                    val ymlDoc = uniRoot?.listFiles()?.firstOrNull { it.isFile && it.name?.equals("user.yml", true) == true }
+                    if (ymlDoc != null) userYmlText = contentResolver.openInputStream(ymlDoc.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                } catch (_: Exception) {}
+            }
+        }
         userYmlText?.let { txt ->
             parseActiveProject(txt)?.let { listing.put("active", it) }
             listing.put("userYml", txt.take(3000)) // tijdelijk: laat me het exacte formaat zien

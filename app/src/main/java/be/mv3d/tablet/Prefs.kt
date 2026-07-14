@@ -32,6 +32,7 @@ class Prefs(private val ctx: Context) {
     suspend fun code() = ctx.dataStore.data.first()[CODE] ?: ""
     suspend fun server() = ctx.dataStore.data.first()[SERVER] ?: "https://mv3d.be"
     suspend fun tree() = ctx.dataStore.data.first()[TREE] ?: ""
+    suspend fun uni() = ctx.dataStore.data.first()[UNI] ?: ""
 
     suspend fun setCode(v: String) = ctx.dataStore.edit { it[CODE] = v.trim() }
     suspend fun setServer(v: String) = ctx.dataStore.edit { it[SERVER] = v.trim().trimEnd('/') }

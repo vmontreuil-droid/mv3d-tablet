@@ -21,7 +21,7 @@ data class ConvOut(val path: String, val text: String, val dir: String = "projec
 data class ConvResult(val werf: String, val folder: String, val surfaces: Int, val lines: Int, val files: List<ConvOut>)
 data class Proj(val name: String, val type: String)
 data class Werf(val name: String, val address: String, val lat: Double?, val lon: Double?, val files: Int, val active: Boolean, val projecten: List<Proj> = emptyList(), val current: Boolean = false)
-data class Overview(val name: String, val guidance: String, val code: String, val lat: Double?, val lon: Double?, val werven: List<Werf>)
+data class Overview(val name: String, val guidance: String, val code: String, val lat: Double?, val lon: Double?, val werven: List<Werf>, val online: Boolean = true)
 
 /** Dunne client rond de bestaande MV3D device-API (/api/machines/sync en /tunnel). */
 class Api(private val server: String, private val code: String) {
@@ -125,16 +125,30 @@ class Api(private val server: String, private val code: String) {
     fun overview(): Overview? {
         http.newCall(Request.Builder().url("$server/api/machines/overview?code=$code").build()).execute().use { r ->
             if (!r.isSuccessful) return null
-            val o = JSONObject(r.body?.string() ?: "{}")
-            fun dbl(k: String): Double? = if (o.isNull(k)) null else o.optDouble(k).let { if (it.isNaN()) null else it }
-            val werven = ArrayList<Werf>()
-            o.optJSONArray("werven")?.let { arr -> for (i in 0 until arr.length()) { val w = arr.getJSONObject(i)
-                fun wd(k: String): Double? = if (w.isNull(k)) null else w.optDouble(k).let { if (it.isNaN()) null else it }
-                val projs = ArrayList<Proj>()
-                w.optJSONArray("projecten")?.let { pa -> for (j in 0 until pa.length()) { val p = pa.getJSONObject(j); projs.add(Proj(p.optString("name"), p.optString("type"))) } }
-                werven.add(Werf(w.optString("name"), w.optString("address"), wd("lat"), wd("lon"), w.optInt("files"), w.optBoolean("active"), projs, w.optBoolean("current"))) } }
-            return Overview(o.optString("name"), o.optString("guidance"), o.optString("code"), dbl("lat"), dbl("lon"), werven)
+            return parseOverview(JSONObject(r.body?.string() ?: "{}"))
         }
+    }
+
+    /** Beheerder-overzicht: álle kranen van de klant (elk met werven), via Supabase-token. */
+    fun overviewAll(token: String): List<Overview> {
+        val req = Request.Builder().url("$server/api/machines/overview-all")
+            .addHeader("Authorization", "Bearer $token").build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) return emptyList()
+            val arr = JSONObject(r.body?.string() ?: "{}").optJSONArray("machines") ?: return emptyList()
+            return (0 until arr.length()).map { parseOverview(arr.getJSONObject(it)) }
+        }
+    }
+
+    private fun parseOverview(o: JSONObject): Overview {
+        fun dbl(k: String): Double? = if (o.isNull(k)) null else o.optDouble(k).let { if (it.isNaN()) null else it }
+        val werven = ArrayList<Werf>()
+        o.optJSONArray("werven")?.let { arr -> for (i in 0 until arr.length()) { val w = arr.getJSONObject(i)
+            fun wd(k: String): Double? = if (w.isNull(k)) null else w.optDouble(k).let { if (it.isNaN()) null else it }
+            val projs = ArrayList<Proj>()
+            w.optJSONArray("projecten")?.let { pa -> for (j in 0 until pa.length()) { val p = pa.getJSONObject(j); projs.add(Proj(p.optString("name"), p.optString("type"))) } }
+            werven.add(Werf(w.optString("name"), w.optString("address"), wd("lat"), wd("lon"), w.optInt("files"), w.optBoolean("active"), projs, w.optBoolean("current"))) } }
+        return Overview(o.optString("name"), o.optString("guidance"), o.optString("code"), dbl("lat"), dbl("lon"), werven, o.optBoolean("online", true))
     }
 
     /** Satelliet-luchtfoto (ArcGIS World Imagery) rond een GPS-punt → JPEG-bytes. */

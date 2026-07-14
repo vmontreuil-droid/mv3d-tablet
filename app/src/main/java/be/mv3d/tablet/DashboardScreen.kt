@@ -54,31 +54,49 @@ private fun gsColors(gs: String): Pair<Color, Color> = when (gs.uppercase()) {
 @Composable
 fun DashboardScreen(
     server: String, code: String, machineName: String,
+    beheerder: Boolean, token: String, authEmail: String,
     onSettings: () -> Unit, onConvert: (String) -> Unit, onLogout: () -> Unit,
 ) {
-    var ov by remember { mutableStateOf<Overview?>(null) }
+    var ovMachinist by remember { mutableStateOf<Overview?>(null) }
+    var machines by remember { mutableStateOf<List<Overview>>(emptyList()) }
+    var selMachineCode by remember { mutableStateOf<String?>(null) }
     val werfBmps = remember { mutableStateMapOf<String, ImageBitmap>() }
-    LaunchedEffect(code) {
-        val api = Api(server, code)
-        while (true) {   // elke 15s vernieuwen → nieuwe werven/GPS verschijnen vanzelf
-            val o = withContext(Dispatchers.IO) { runCatching { api.overview() }.getOrNull() }
-            if (o != null) {
-                ov = o
-                // werf-luchtfoto's parallel ophalen (veel sneller dan één voor één)
-                val todo = o.werven.filter { it.lat != null && it.lon != null && !werfBmps.containsKey(it.name) }
-                if (todo.isNotEmpty()) coroutineScope {
-                    todo.map { w ->
-                        async(Dispatchers.IO) { w.name to api.aerial(w.lat!!, w.lon!!, 400, 240) }
-                    }.forEach { job ->
-                        val (nm, b) = job.await()
-                        if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[nm] = it }
-                    }
-                }
+
+    // data laden per rol (elke 15s vernieuwen → nieuwe werven/GPS verschijnen vanzelf)
+    LaunchedEffect(beheerder, code, token) {
+        while (true) {
+            if (beheerder) {
+                val list = withContext(Dispatchers.IO) { runCatching { Api(server, "").overviewAll(token) }.getOrNull() }
+                if (list != null) machines = list
+            } else {
+                val o = withContext(Dispatchers.IO) { runCatching { Api(server, code).overview() }.getOrNull() }
+                if (o != null) ovMachinist = o
             }
             kotlinx.coroutines.delay(15_000)
         }
     }
 
+    // de kraan die nu getoond wordt: bij beheerder de gekozen kraan, anders de eigen kraan
+    val ov: Overview? = if (beheerder) machines.firstOrNull { it.code == selMachineCode } else ovMachinist
+
+    // werf-luchtfoto's parallel laden voor de zichtbare werven (ArcGIS — geen code nodig)
+    LaunchedEffect(ov?.werven?.map { it.name }) {
+        val ws = ov?.werven ?: emptyList()
+        val todo = ws.filter { it.lat != null && it.lon != null && !werfBmps.containsKey(it.name) }
+        if (todo.isNotEmpty()) coroutineScope {
+            val api = Api(server, "")
+            todo.map { w -> async(Dispatchers.IO) { w.name to api.aerial(w.lat!!, w.lon!!, 400, 240) } }
+                .forEach { job -> val (nm, b) = job.await(); if (b != null) runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull()?.let { werfBmps[nm] = it } }
+        }
+    }
+
+    // beheerder zonder gekozen kraan → machine-keuzelijst
+    if (beheerder && selMachineCode == null) {
+        BeheerderMachines(machines, authEmail, onConvert, onSettings, onLogout) { selMachineCode = it }
+        return
+    }
+
+    val effCode = ov?.code?.takeIf { it.isNotBlank() } ?: code
     val name = (ov?.name?.takeIf { it.isNotBlank() } ?: machineName.takeIf { it.isNotBlank() }) ?: "Kraan"
     val gs = ov?.guidance?.takeIf { it.isNotBlank() } ?: "—"
     val (gsFg, gsBg) = gsColors(gs)
@@ -88,7 +106,8 @@ fun DashboardScreen(
     var selectedWerf by remember { mutableStateOf<String?>(null) }
     val activeWerfName = werven.firstOrNull { it.current }?.name ?: werven.firstOrNull()?.name ?: "—"
     var showQr by remember { mutableStateOf(false) }
-    val qrBig = remember(code) { qrBitmap(code, 640) }
+    val qrBig = remember(effCode) { qrBitmap(effCode, 640) }
+    val online = ov?.online ?: true
 
     Surface(color = DBg) {
         Row(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -99,6 +118,7 @@ fun DashboardScreen(
                     Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(34.dp))
                     Column { Text("MV3D", color = DRed, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("Machineapp", color = DMuted, fontSize = 11.sp) }
                 }
+                if (beheerder) NavItem(Icons.Outlined.ChevronLeft, "Alle kranen", false) { selMachineCode = null }
                 NavItem(Icons.Outlined.Agriculture, "Mijn kraan", view == "kraan") { view = "kraan" }
                 NavItem(Icons.Outlined.Foundation, "Werven", view == "werven") { view = "werven" }
                 NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
@@ -109,22 +129,22 @@ fun DashboardScreen(
                             Icon(Icons.Outlined.Agriculture, null, tint = DRed, modifier = Modifier.size(20.dp))
                         }
                         Column {
-                            Text("Ingelogd als kraan", color = DMuted, fontSize = 10.sp)
+                            Text(if (beheerder) "Kraan" else "Ingelogd als kraan", color = DMuted, fontSize = 10.sp)
                             Text(name, color = DInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(DOn)); Text("Online · $gs", color = DOn, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (online) DOn else DRed)); Text((if (online) "Online" else "Offline") + " · $gs", color = if (online) DOn else DRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     Text("Kraancode", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
-                    Text(code, color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(effCode, color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("Actieve werf", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
                     Text(activeWerfName, color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text("Werven", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
                     Text(werven.size.toString(), color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 // QR-code van de kraancode (scannen om te koppelen)
-                val qr = remember(code) { qrBitmap(code, 240) }
+                val qr = remember(effCode) { qrBitmap(effCode, 240) }
                 if (qr != null) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).clickable { showQr = true }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White).padding(8.dp)) {
@@ -148,6 +168,13 @@ fun DashboardScreen(
                         Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
                     }
                     Text("MENU", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    if (beheerder) {
+                        Spacer(Modifier.weight(1f))
+                        Row(Modifier.clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { selMachineCode = null }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Outlined.ChevronLeft, null, tint = DRed, modifier = Modifier.size(18.dp))
+                            Text("Alle kranen", color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(DLine))
                 Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -236,9 +263,106 @@ fun DashboardScreen(
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text("Kraancode", color = DMuted, fontSize = 13.sp)
-            Text(code, color = DRed, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(effCode, color = DRed, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Image(qrBig, "QR-code kraancode", Modifier.size(300.dp))
             Text("Tik om te sluiten", color = DMuted, fontSize = 12.sp)
+        }
+    }
+}
+
+/** Beheerder: keuzelijst van ALLE kranen van de klant (online eerst). Tik = open de kraan. */
+@Composable
+private fun BeheerderMachines(
+    machines: List<Overview>, email: String,
+    onConvert: (String) -> Unit, onSettings: () -> Unit, onLogout: () -> Unit,
+    onOpen: (String) -> Unit,
+) {
+    var navOpen by remember { mutableStateOf(true) }
+    Surface(color = DBg) {
+        Row(Modifier.fillMaxSize().statusBarsPadding()) {
+            if (navOpen) {
+                Column(Modifier.width(212.dp).fillMaxHeight().background(Color.White).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(Modifier.padding(start = 4.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(34.dp))
+                        Column { Text("MV3D", color = DRed, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("Beheer", color = DMuted, fontSize = 11.sp) }
+                    }
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DPanel2).padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Box(Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(DRedTint), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.AccountCircle, null, tint = DRed, modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text("Beheerder", color = DMuted, fontSize = 10.sp)
+                                Text(email.ifBlank { "Ingelogd" }, color = DInk, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                        }
+                        Text("Kranen", color = DMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
+                        Text(machines.size.toString(), color = DInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    NavItem(Icons.Outlined.SwapHoriz, "Convertor", false) { onConvert("Unicontrol") }
+                    NavItem(Icons.Outlined.Settings, "Instellingen", false) { onSettings() }
+                    NavItem(Icons.Outlined.PowerSettingsNew, "Uitloggen", false) { onLogout() }
+                }
+                Box(Modifier.width(1.dp).fillMaxHeight().background(DLine))
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(Modifier.fillMaxWidth().background(DBg).padding(horizontal = 24.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    if (!navOpen) Image(painterResource(R.drawable.mv3d_logo), null, Modifier.size(30.dp))
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(DPanel2).clickable { navOpen = !navOpen }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Menu, "Menu in-/uitklappen", tint = DInk, modifier = Modifier.size(20.dp))
+                    }
+                    Text("MIJN KRANEN", color = DMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DLine))
+                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (machines.isEmpty()) {
+                        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+                            Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Outlined.Agriculture, null, tint = DMuted, modifier = Modifier.size(28.dp))
+                                Text("Nog geen kranen", color = DInk, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("Kranen die je op het portaal aanmaakt, verschijnen hier.", color = DMuted, fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        for (m in machines) MachineCard(m) { onOpen(m.code) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+/** Eén kraan als langwerpige band: merk-tegel + naam/systeem + werf-telling + online-strook. */
+@Composable
+private fun MachineCard(m: Overview, onClick: () -> Unit) {
+    val tile = when (m.guidance.uppercase()) {
+        "UNICONTROL" -> R.drawable.tile_unicontrol
+        "TRIMBLE" -> R.drawable.tile_trimble
+        "TOPCON" -> R.drawable.tile_topcon
+        "LEICA" -> R.drawable.tile_leica
+        "CHCNAV" -> R.drawable.tile_chcnav
+        else -> null
+    }
+    Card(Modifier.fillMaxWidth().clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, DLine)) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            Row(Modifier.weight(1f).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (tile != null) Image(painterResource(tile), m.guidance, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
+                else Box(Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(DPanel2), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Agriculture, null, tint = DSoft, modifier = Modifier.size(26.dp)) }
+                Column(Modifier.weight(1f)) {
+                    Text(m.name.ifBlank { "Kraan" }, color = DInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(m.guidance.ifBlank { "—" }, color = DMuted, fontSize = 12.sp)
+                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("${m.werven.size} werven", color = DSoft, fontSize = 12.sp)
+                        Text("Openen →", color = DRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            // verticale online/offline-strook (groen = online, rood = offline)
+            Box(Modifier.fillMaxHeight().width(30.dp).background(if (m.online) DOn else DRed), contentAlignment = Alignment.Center) {
+                Text(if (m.online) "ONLINE" else "OFFLINE", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.graphicsLayer { rotationZ = 90f })
+            }
         }
     }
 }

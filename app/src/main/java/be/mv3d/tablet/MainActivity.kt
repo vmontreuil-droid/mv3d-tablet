@@ -190,6 +190,10 @@ class MainActivity : ComponentActivity() {
                             server = server,
                             code = code,
                             machineName = machineName ?: "",
+                            // rol uit het token: crane:CODE of overgeslagen = machinist, echt Supabase-token = beheerder
+                            beheerder = authToken.isNotBlank() && !authToken.startsWith("crane:") && authToken != "guest",
+                            token = authToken,
+                            authEmail = authEmail,
                             onSettings = { screen = "pair" },
                             onConvert = { b -> convBrand = b; convSources = emptyList(); convWerf = ""; convMsg = null; convDone = false; screen = "convert" },
                             onLogout = { scope.launch { prefs.clearAuth() } },

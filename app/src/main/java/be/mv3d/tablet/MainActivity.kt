@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                                 )
                             } catch (_: Exception) { }
-                            scope.launch { prefs.setTree(uri.toString()); startSync() }
+                            scope.launch { prefs.setTree(uri.toString()); startSync(); Batterij.vraag(ctx) }
                         }
                     }
 
@@ -126,13 +126,14 @@ class MainActivity : ComponentActivity() {
                                     // blijft de toestemming soms staan — dan is de code werkelijk
                                     // het enige geweest wat hij moest doen.
                                     val alGegeven = Unicontrol.alGegeven(ctx)
-                                    if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync() }
+                                    if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync(); Batterij.vraag(ctx) }
                                     else kiesMap.launch(Unicontrol.kiezer())
                                 }
                                 klaar(goed)
                             }
                         },
                         onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
+                        onBatterij = { Batterij.vraag(ctx) },
                         onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
                     )
                     LaunchedEffect(code, tree) { if (code.isNotBlank() && tree.isNotBlank()) startSync() }
@@ -209,8 +210,10 @@ private fun Scherm (
     gekoppeld: Boolean,
     onKoppel: (String, (Boolean) -> Unit) -> Unit,
     onKiesMap: () -> Unit,
+    onBatterij: () -> Unit,
     onOntkoppel: () -> Unit,
 ) {
+    val ctx = LocalContext.current
     var getikt by remember { mutableStateOf("") }
     var bezig by remember { mutableStateOf(false) }
     var fout by remember { mutableStateOf(false) }
@@ -218,7 +221,14 @@ private fun Scherm (
     // Elke seconde opnieuw kijken. Het bolletje hoort mee te bewegen met de werkelijkheid; een
     // groen bolletje dat groen blijft omdat niemand het bijwerkt, is erger dan geen bolletje.
     var tik by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { tik = System.currentTimeMillis(); delay(1000) } }
+    var magDoorlopen by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            tik = System.currentTimeMillis()
+            magDoorlopen = Batterij.magDoorlopen(ctx)
+            delay(1000)
+        }
+    }
     val laatste = SyncService.lastOk
     val leeft = gekoppeld && laatste > 0 && (tik - laatste) < 30_000
 
@@ -297,6 +307,37 @@ private fun Scherm (
         SyncService.machineName?.takeIf { leeft }?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, fontSize = 15.sp, color = TekstZacht)
+        }
+
+        // ── legt de batterijbesparing de app stil? ──
+        //
+        // Alleen te zien wanneer het werkelijk knelt, en dan wel duidelijk. Een tablet die uren in
+        // een stilstaande cabine ligt, is precies waar Android denkt: die app heeft niemand nodig.
+        // Maar juist dan hoort de werf die je van kantoor stuurt binnen te komen — en als ze dat
+        // niet doet, is er niets te zien wat verklaart waarom.
+        //
+        // Zodra de uitzondering er is, verdwijnt deze regel. Een waarschuwing die blijft staan als
+        // ze verholpen is, leert je om waarschuwingen niet meer te lezen.
+        if (code.isNotBlank() && !magDoorlopen) {
+            Spacer(Modifier.height(22.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kaart).padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Android mag deze app stilleggen",
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Dan komt een werf 's nachts niet binnen. Eén tik en dat is opgelost.",
+                    fontSize = 13.5.sp, color = TekstZacht, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = onBatterij, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Laten doorlopen", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         if (wachtOpMap) {

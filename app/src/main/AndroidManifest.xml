@@ -11,7 +11,9 @@
         · internet, en weten of er verbinding is;
         · een voorgronddienst met een melding — anders legt Android de sync na een paar minuten stil;
         · opnieuw starten na een herstart van de tablet;
-        · een apk mogen installeren, voor de eigen bijwerking.
+        · een apk mogen installeren, voor de eigen bijwerking;
+        · buiten de batterijbesparing mogen blijven — anders legt Android de dienst na een
+          paar dagen stilstand alsnog stil, en dan staat de werf er 's morgens niet.
 
       Naar de map waarin geschreven wordt, wordt niet met een toestemming gevraagd maar met de
       mappenkiezer van Android: de machinist wijst er één aan en de app kan bij die ene map. Dat
@@ -24,6 +26,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"

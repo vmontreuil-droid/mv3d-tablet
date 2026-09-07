@@ -83,7 +83,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vraagMeldingen()
-        zoekBijwerking()
 
         setContent {
             MaterialTheme(colorScheme = Mv3dColors) {
@@ -134,6 +133,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
                         onBatterij = { Batterij.vraag(ctx) },
+                        onBijwerken = { Updater.installeer(ctx, SyncService.updateKlaar) },
                         onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
                     )
                     LaunchedEffect(code, tree) { if (code.isNotBlank() && tree.isNotBlank()) startSync() }
@@ -149,21 +149,12 @@ class MainActivity : ComponentActivity() {
         try { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1) } catch (_: Exception) { }
     }
 
-    /**
-     * Is er een nieuwere bouw?
-     *
-     * Android laat een zij-geladen app niet stil herinstalleren, dus er blijft één tik
-     * "Installeren" over — een grens van Android, niet van ons. Lukt het niet (geen netwerk op de
-     * werf), dan gebeurt er niets: bijwerken mag nooit in de weg staan van het werk.
-     */
-    private fun zoekBijwerking() {
-        Thread {
-            try {
-                val u = Updater.check() ?: return@Thread
-                Updater.downloadAndInstall(this, u.apkUrl)
-            } catch (_: Exception) { }
-        }.start()
-    }
+    // Het zoeken naar een nieuwe versie stond hier, in onCreate.
+    //
+    // Dat is verhuisd naar SyncService. Deze app wordt één keer geopend om te koppelen en daarna
+    // maandenlang niet meer aangeraakt — een controle die aan het openen hangt, loopt dus nooit.
+    // De dienst kijkt één keer per dag en zet de versie stil klaar; hier staat alleen nog de knop
+    // die de installer opent, en dan alleen als er werkelijk iets klaarstaat.
 
     private fun startSync() {
         val i = Intent(this, SyncService::class.java)
@@ -211,6 +202,7 @@ private fun Scherm (
     onKoppel: (String, (Boolean) -> Unit) -> Unit,
     onKiesMap: () -> Unit,
     onBatterij: () -> Unit,
+    onBijwerken: () -> Unit,
     onOntkoppel: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -352,6 +344,29 @@ private fun Scherm (
                 Spacer(Modifier.height(14.dp))
                 Button(onClick = onBatterij, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                     Text("Laten doorlopen", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // ── er staat een nieuwe versie klaar ──
+        //
+        // Ze is al binnengehaald door de dienst; hier is alleen de tik over die Android hoe dan
+        // ook wil. Geen venster dat vanzelf opengaat: wie aan het graven is, wordt niet
+        // onderbroken door zijn eigen gereedschap.
+        if (SyncService.updateKlaar > 0) {
+            Spacer(Modifier.height(22.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kaart).padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Nieuwe versie klaar", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst)
+                SyncService.updateNaam.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, fontSize = 13.sp, color = TekstZacht)
+                }
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = onBijwerken, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Bijwerken", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

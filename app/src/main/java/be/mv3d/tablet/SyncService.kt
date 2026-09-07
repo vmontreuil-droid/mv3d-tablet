@@ -48,7 +48,11 @@ class SyncService : Service() {
 
     companion object {
         const val CHANNEL = "mv3d_sync"
+        /** Een tweede kanaal, want deze melding mág gezien worden. De sync-melding niet. */
+        const val CHANNEL_UPDATE = "mv3d_update"
         const val INTERVAL_MS = 5_000L
+        /** Eén keer per dag kijken of er een nieuwe versie staat. Vaker heeft geen doel. */
+        const val UPDATE_MS = 24 * 60 * 60 * 1000L
         @Volatile var running = false; private set
         /** Wat er als laatste gebeurde. Het scherm leest dit; het is het enige wat het toont. */
         @Volatile var lastStatus: String = "—"
@@ -64,6 +68,9 @@ class SyncService : Service() {
          * het portaal de kraan gewoon online ziet staan. Dan zoekt iedereen op de verkeerde plek.
          */
         @Volatile var lastFout: String? = null
+        /** Welke build er klaarstaat om geïnstalleerd te worden, of 0. Het scherm leest dit. */
+        @Volatile var updateKlaar: Int = 0
+        @Volatile var updateNaam: String = ""
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -82,8 +89,66 @@ class SyncService : Service() {
                 lastStatus = "fout: ${e.message}"
                 lastFout = "Geen verbinding met mv3d.be."
             }
+            // Los van de bestanden, en het mag mislukken zonder gevolg: bijwerken hoort nooit in
+            // de weg te staan van het werk.
+            try { bijwerken() } catch (_: Exception) { }
             delay(INTERVAL_MS)
         }
+    }
+
+    /**
+     * Eén keer per dag kijken of er een nieuwe versie is, en die stil klaarzetten.
+     *
+     * Wat hier níét gebeurt, is de installer openen. Dat deed de app vroeger, bij het opstarten,
+     * en dat is een venster dat vanzelf voor je neus komt terwijl je aan het graven bent. Nu legt
+     * ze een melding in de balk; de machinist tikt erop wanneer het hem past.
+     *
+     * De ene tik "Installeren" die daarna volgt, krijgen we er niet uit: Android laat een
+     * zij-geladen app niet stil herinstalleren.
+     */
+    private suspend fun bijwerken() {
+        // Staat er al iets klaar, dan is er niets te doen — behalve het onthouden na een herstart.
+        val alKlaar = prefs.klaar()
+        if (alKlaar > 0) {
+            if (Updater.staatKlaar(this, alKlaar)) {
+                if (updateKlaar != alKlaar) {
+                    updateKlaar = alKlaar; updateNaam = prefs.klaarNaam()
+                    meldBijwerking()
+                }
+                return
+            }
+            // Het bestand is weg — de cache van een tablet wordt opgeruimd als de schijf vol loopt.
+            prefs.wisKlaar(); updateKlaar = 0
+        }
+
+        val nu = System.currentTimeMillis()
+        if (nu - prefs.gekeken() < UPDATE_MS) return
+        prefs.setGekeken(nu)
+
+        val u = Updater.check() ?: return
+        if (!Updater.haal(this, u)) return
+        prefs.setKlaar(u.versionCode, u.versionName)
+        updateKlaar = u.versionCode; updateNaam = u.versionName
+        meldBijwerking()
+    }
+
+    /** De melding in de balk. Erop tikken opent de installer van Android. */
+    private fun meldBijwerking() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_UPDATE, "MV3D bijwerken", NotificationManager.IMPORTANCE_DEFAULT),
+            )
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        val pi = PendingIntent.getActivity(this, 2, Updater.installatie(this, updateKlaar), flags)
+        val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_UPDATE) else @Suppress("DEPRECATION") Notification.Builder(this)
+        nm.notify(2, b.setContentTitle("Nieuwe versie klaar")
+            .setContentText("Tik om MV3D bij te werken.")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build())
     }
 
     private suspend fun tick() {

@@ -1,29 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Om de geïnstalleerde Unicontrol-app te kunnen vinden + starten (Play-proof, geen QUERY_ALL_PACKAGES). -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
+    <!--
+      Wat de app mag, en niets meer.
 
+      Hier stond eerder ook: de camera (voor een QR-lezer), de plaats van het toestel, opname van
+      het scherm, en een dienst voor bediening op afstand. Die zijn er allemaal uit. Wat overblijft
+      is wat je nodig hebt om bestanden op te halen en neer te zetten:
+
+        · internet, en weten of er verbinding is;
+        · een voorgronddienst met een melding — anders legt Android de sync na een paar minuten stil;
+        · opnieuw starten na een herstart van de tablet;
+        · een apk mogen installeren, voor de eigen bijwerking.
+
+      Naar de map waarin geschreven wordt, wordt niet met een toestemming gevraagd maar met de
+      mappenkiezer van Android: de machinist wijst er één aan en de app kan bij die ene map. Dat
+      is nauwer dan "toegang tot alle bestanden" en het is voor hem ook duidelijker.
+    -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Eigen schermdeling: opname via MediaProjection, bediening via AccessibilityService. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:allowBackup="true"
@@ -32,11 +32,6 @@
         android:label="MV3D"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-
-        <activity
-            android:name=".WebViewActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <activity
             android:name=".MainActivity"
@@ -53,35 +48,6 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".RemoteService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Eigen schermdeling -->
-        <activity
-            android:name=".ProjectionRequestActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
-        <service
-            android:name=".ScreenCaptureService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
-
-        <service
-            android:name=".RemoteInputService"
-            android:exported="false"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/remote_input_service" />
-        </service>
-
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
@@ -92,6 +58,7 @@
             </intent-filter>
         </receiver>
 
+        <!-- Voor de eigen bijwerking: de gedownloade apk aan de installer van Android geven. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

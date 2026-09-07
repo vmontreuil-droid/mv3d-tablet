@@ -69,18 +69,14 @@ private val Mv3dColors = darkColorScheme(
 )
 
 /**
- * De hele app, in twee schermen.
+ * De hele app, in één scherm.
  *
- * ── koppelen ──
+ * De koppelcode groot in het midden, en eronder een bolletje dat zegt of het werkt. Meer is er
+ * niet, en meer hoeft er ook niet: wat er van kantoor komt, staat vanzelf in Unicontrol.
  *
- * Alleen de code. De map zoekt de app zelf: de kiezer gaat vanzelf open op de map van Unicontrol,
- * en de machinist duwt één keer op "Deze map gebruiken". Mag de app een map uit een eerdere
- * installatie nog gebruiken, dan slaan we die stap over en is de code werkelijk het enige.
- *
- * ── daarna ──
- *
- * Een bolletje, het woord "gekoppeld", en zijn code. Meer heeft hij hier niet te zoeken: wat er
- * van kantoor komt, staat vanzelf in Unicontrol.
+ * De map zoekt de app zelf. De kiezer gaat vanzelf open op de map van Unicontrol en de machinist
+ * duwt één keer op "Deze map gebruiken". Mag de app een map uit een eerdere installatie nog
+ * gebruiken, dan slaan we die stap over en is de code werkelijk het enige.
  */
 class MainActivity : ComponentActivity() {
 
@@ -117,35 +113,29 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (code.isNotBlank() && tree.isNotBlank()) {
-                        StatusScherm(
-                            code = code,
-                            onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
-                            onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
-                        )
-                        LaunchedEffect(Unit) { startSync() }
-                    } else {
-                        KoppelScherm(
-                            wachtOpMap = code.isNotBlank(),
-                            onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
-                            onKoppel = { ingetikt, klaar ->
-                                scope.launch {
-                                    val server = prefs.server()
-                                    val goed = withContext(Dispatchers.IO) { Api(server, ingetikt).verifyCode() }
-                                    if (goed) {
-                                        prefs.setCode(ingetikt)
-                                        // De map erbij zoeken. Mag er al een — bij een
-                                        // herinstallatie blijft de toestemming soms staan — dan is
-                                        // de code het enige geweest wat hij moest doen.
-                                        val alGegeven = Unicontrol.alGegeven(ctx)
-                                        if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync() }
-                                        else kiesMap.launch(Unicontrol.kiezer())
-                                    }
-                                    klaar(goed)
+                    Scherm(
+                        code = code,
+                        gekoppeld = code.isNotBlank() && tree.isNotBlank(),
+                        onKoppel = { ingetikt, klaar ->
+                            scope.launch {
+                                val server = prefs.server()
+                                val goed = withContext(Dispatchers.IO) { Api(server, ingetikt).verifyCode() }
+                                if (goed) {
+                                    prefs.setCode(ingetikt)
+                                    // De map erbij zoeken. Mag er al een — bij een herinstallatie
+                                    // blijft de toestemming soms staan — dan is de code werkelijk
+                                    // het enige geweest wat hij moest doen.
+                                    val alGegeven = Unicontrol.alGegeven(ctx)
+                                    if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync() }
+                                    else kiesMap.launch(Unicontrol.kiezer())
                                 }
-                            },
-                        )
-                    }
+                                klaar(goed)
+                            }
+                        },
+                        onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
+                        onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
+                    )
+                    LaunchedEffect(code, tree) { if (code.isNotBlank() && tree.isNotBlank()) startSync() }
                 }
             }
         }
@@ -202,152 +192,132 @@ private fun Merk (bergHoogte: Int = 72, tekstMaat: Int = 26) {
     }
 }
 
-// ── koppelen: alleen de code ────────────────────────────────────────────────
+// ── Eén scherm ──────────────────────────────────────────────────────────────
+//
+// De code groot in het midden, en eronder of het gekoppeld is. Meer is er niet.
+//
+// Er stonden er twee — een koppelscherm en een statusscherm — en dat was er één te veel. Wie de
+// app opent, wil één van twee dingen weten: welke code er in staat, of het werkt. Dat past op
+// hetzelfde scherm, en dan hoeft niemand te leren welk scherm waarvoor dient.
+//
+// Vóór het koppelen is het veld in te tikken. Daarna staat de code er gewoon, groot genoeg om
+// vanaf een meter af te lezen — want dat is waarvoor je hem later nog eens opzoekt.
 
 @Composable
-private fun KoppelScherm (
-    wachtOpMap: Boolean,
-    onKiesMap: () -> Unit,
+private fun Scherm (
+    code: String,
+    gekoppeld: Boolean,
     onKoppel: (String, (Boolean) -> Unit) -> Unit,
+    onKiesMap: () -> Unit,
+    onOntkoppel: () -> Unit,
 ) {
-    var code by remember { mutableStateOf("") }
+    var getikt by remember { mutableStateOf("") }
     var bezig by remember { mutableStateOf(false) }
     var fout by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(56.dp))
-        Merk(bergHoogte = 84, tekstMaat = 30)
-        Spacer(Modifier.height(10.dp))
-
-        if (wachtOpMap) {
-            // De code klopte, maar de kiezer is weggeklikt. Dan is er nog één ding te doen, en
-            // dat hoort er te staan in plaats van een leeg codeveld dat hij opnieuw invult.
-            Text("Nog één tik", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Tekst)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Wijs de map van Unicontrol aan. De kiezer staat er al open; duw op “Deze map gebruiken”.",
-                fontSize = 14.sp, textAlign = TextAlign.Center, color = TekstZacht,
-            )
-            Spacer(Modifier.height(28.dp))
-            Button(onClick = onKiesMap, modifier = Modifier.fillMaxWidth().height(62.dp)) {
-                Text("Map aanwijzen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            }
-            return@Column
-        }
-
-        Text("Tik de koppelcode in", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Tekst)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Acht cijfers. Ze staan op mv3d.be, bij Machines.",
-            fontSize = 14.sp, textAlign = TextAlign.Center, color = TekstZacht,
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = code,
-            onValueChange = { nieuw ->
-                // Alleen cijfers, en niet meer dan acht. Wie plakt, plakt soms een spatie of een
-                // streepje mee; dat hoort de app zelf weg te halen in plaats van erover te klagen.
-                code = nieuw.filter { it.isDigit() }.take(8)
-                fout = false
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            isError = fout,
-            placeholder = { Text("00000000", fontSize = 30.sp, color = TekstZacht, textAlign = TextAlign.Center) },
-            textStyle = TextStyle(fontSize = 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = 6.sp),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (fout) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Die code kennen we niet. Kijk hem na op mv3d.be, bij Machines.",
-                fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Button(
-            onClick = { bezig = true; onKoppel(code) { goed -> bezig = false; fout = !goed } },
-            enabled = !bezig && code.length == 8,
-            modifier = Modifier.fillMaxWidth().height(62.dp),
-        ) {
-            if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
-            else Text("Koppelen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(Modifier.height(22.dp))
-        Text(
-            "Daarna wijst u één keer de map van Unicontrol aan, en verder hoeft u hier niets meer te doen.",
-            fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
-        )
-    }
-}
-
-// ── daarna: een bolletje, gekoppeld, en de code ─────────────────────────────
-
-@Composable
-private fun StatusScherm (
-    code: String,
-    onOntkoppel: () -> Unit,
-    onKiesMap: () -> Unit,
-) {
     // Elke seconde opnieuw kijken. Het bolletje hoort mee te bewegen met de werkelijkheid; een
     // groen bolletje dat groen blijft omdat niemand het bijwerkt, is erger dan geen bolletje.
     var tik by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { tik = System.currentTimeMillis(); delay(1000) } }
-
     val laatste = SyncService.lastOk
-    val leeft = laatste > 0 && (tik - laatste) < 30_000
-    val naam = SyncService.machineName
+    val leeft = gekoppeld && laatste > 0 && (tik - laatste) < 30_000
+
+    // De code klopt al, maar de map is nog niet aangewezen: dan is er nog één tik te doen.
+    val wachtOpMap = code.isNotBlank() && !gekoppeld
 
     Column(
-        Modifier.fillMaxSize().padding(28.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Merk(bergHoogte = 64, tekstMaat = 22)
+        Spacer(Modifier.height(24.dp))
+        Merk(bergHoogte = 72, tekstMaat = 26)
+        Spacer(Modifier.height(40.dp))
+
+        Text("KOPPELCODE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = TekstZacht)
+        Spacer(Modifier.height(10.dp))
+
+        if (code.isBlank()) {
+            OutlinedTextField(
+                value = getikt,
+                onValueChange = { nieuw ->
+                    // Alleen cijfers, en niet meer dan acht. Wie plakt, plakt soms een spatie of
+                    // een streepje mee; dat hoort de app zelf weg te halen in plaats van erover te
+                    // klagen.
+                    getikt = nieuw.filter { it.isDigit() }.take(8)
+                    fout = false
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                isError = fout,
+                placeholder = { Text("00000000", fontSize = 36.sp, color = TekstZacht, textAlign = TextAlign.Center) },
+                textStyle = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = 8.sp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = { bezig = true; onKoppel(getikt) { goed -> bezig = false; fout = !goed } },
+                enabled = !bezig && getikt.length == 8,
+                modifier = Modifier.fillMaxWidth().height(62.dp),
+            ) {
+                if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
+                else Text("Koppelen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            }
+            if (fout) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Die code kennen we niet. Kijk hem na op mv3d.be, bij Machines.",
+                    fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
+                )
+            }
+        } else {
+            Box(Modifier.clip(RoundedCornerShape(18.dp)).background(Kaart).padding(horizontal = 30.dp, vertical = 18.dp)) {
+                Text(
+                    code.chunked(4).joinToString("  "),
+                    fontSize = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp, color = Accent,
+                )
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
 
+        // ── eronder: gekoppeld of niet ──
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(16.dp).clip(CircleShape)
+                Modifier.size(14.dp).clip(CircleShape)
                     .background(if (leeft) Accent else Color(0xFF5A6C82)),
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Text(
-                if (leeft) "Gekoppeld" else "Geen verbinding",
-                fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Tekst,
+                if (leeft) "Gekoppeld" else if (wachtOpMap) "Nog een tik: wijs de map aan" else "Niet gekoppeld",
+                fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                color = if (leeft) Tekst else TekstZacht,
             )
         }
-        if (naam != null) {
-            Spacer(Modifier.height(6.dp))
-            Text(naam, fontSize = 17.sp, color = TekstZacht)
+        SyncService.machineName?.takeIf { leeft }?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, fontSize = 15.sp, color = TekstZacht)
         }
 
-        Spacer(Modifier.height(36.dp))
-
-        Text("KOPPELCODE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = TekstZacht)
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.clip(RoundedCornerShape(16.dp)).background(Kaart).padding(horizontal = 28.dp, vertical = 16.dp)) {
+        if (wachtOpMap) {
+            Spacer(Modifier.height(18.dp))
+            Button(onClick = onKiesMap, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Text("Map aanwijzen", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
-                code.chunked(4).joinToString("  "),
-                fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp, color = Accent,
+                "De kiezer staat al op de map van Unicontrol. Duw op Deze map gebruiken.",
+                fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
             )
         }
 
-        Spacer(Modifier.height(56.dp))
+        Spacer(Modifier.height(44.dp))
 
         // Klein en onderaan. Ze horen er te zijn — een tablet verhuist, een map verandert — maar
         // ze zijn niet waarvoor je dit scherm opent.
-        TextButton(onClick = onKiesMap) { Text("Andere map kiezen", fontSize = 13.sp, color = TekstZacht) }
-        TextButton(onClick = onOntkoppel) { Text("Ontkoppelen", fontSize = 13.sp, color = TekstZacht) }
+        if (code.isNotBlank()) {
+            TextButton(onClick = onKiesMap) { Text("Andere map kiezen", fontSize = 13.sp, color = TekstZacht) }
+            TextButton(onClick = onOntkoppel) { Text("Ontkoppelen", fontSize = 13.sp, color = TekstZacht) }
+        }
     }
 }

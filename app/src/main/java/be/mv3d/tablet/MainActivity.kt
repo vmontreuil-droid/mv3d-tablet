@@ -309,6 +309,22 @@ private fun Scherm (
             Text(it, fontSize = 15.sp, color = TekstZacht)
         }
 
+        // Wat er hapert, in één zin.
+        //
+        // Dit stond er niet, en dat was precies het probleem: een bestand dat niet weggeschreven
+        // raakte, was op dit scherm niet te onderscheiden van een tablet die niet gekoppeld was.
+        // De machinist ziet nu wát er scheelt; de kaart hierboven blijft groen, want met de server
+        // is er niets aan de hand.
+        SyncService.lastFout?.takeIf { code.isNotBlank() }?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                it,
+                fontSize = 14.sp, textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         // ── legt de batterijbesparing de app stil? ──
         //
         // Alleen te zien wanneer het werkelijk knelt, en dan wel duidelijk. Een tablet die uren in

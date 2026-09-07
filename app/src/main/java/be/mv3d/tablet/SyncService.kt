@@ -9,7 +9,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.provider.DocumentsContract
+import android.webkit.MimeTypeMap
 import androidx.documentfile.provider.DocumentFile
+import java.io.OutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,6 +42,10 @@ class SyncService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val prefs by lazy { Prefs(this) }
 
+    /** Hoe vaak een bestand al mislukt is, en wanneer we het opnieuw mogen proberen. */
+    private val pogingen = HashMap<String, Int>()
+    private val later = HashMap<String, Long>()
+
     companion object {
         const val CHANNEL = "mv3d_sync"
         const val INTERVAL_MS = 5_000L
@@ -48,6 +55,15 @@ class SyncService : Service() {
         @Volatile var machineName: String? = null
         /** Wanneer er voor het laatst met de server gepraat is (millis), of 0. */
         @Volatile var lastOk: Long = 0
+        /**
+         * Wat er misloopt, in gewone woorden — of niets.
+         *
+         * Dit staat los van lastOk, en dat is het hele punt. Contact met de server en het
+         * wegschrijven van een bestand zijn twee verschillende dingen, en ze mogen niet hetzelfde
+         * bolletje delen: dan leest een schrijffout op het scherm als "niet gekoppeld", terwijl
+         * het portaal de kraan gewoon online ziet staan. Dan zoekt iedereen op de verkeerde plek.
+         */
+        @Volatile var lastFout: String? = null
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -62,7 +78,10 @@ class SyncService : Service() {
 
     private fun loop() = scope.launch {
         while (isActive) {
-            try { tick() } catch (e: Exception) { lastStatus = "fout: ${e.message}" }
+            try { tick() } catch (e: Exception) {
+                lastStatus = "fout: ${e.message}"
+                lastFout = "Geen verbinding met mv3d.be."
+            }
             delay(INTERVAL_MS)
         }
     }
@@ -72,20 +91,60 @@ class SyncService : Service() {
         if (code.isBlank() || treeStr.isBlank()) { lastStatus = "niet gekoppeld"; return }
         val api = Api(server, code)
         val tree = DocumentFile.fromTreeUri(this, Uri.parse(treeStr))
-            ?: run { lastStatus = "map ongeldig"; return }
+            ?: run { lastStatus = "map ongeldig"; lastFout = "De map is niet meer bereikbaar. Wijs ze opnieuw aan."; return }
 
         val res = api.sync(mappenlijst(tree))
+
+        // Er is contact geweest. Dat tekenen we hier, en niet onderaan.
+        //
+        // Stond het onderaan, dan wiste één bestand dat niet wilde wegschrijven het hele bolletje
+        // uit — en dan zei de app "niet gekoppeld" terwijl ze net nog met de server gepraat had.
+        lastOk = System.currentTimeMillis()
         res.name?.let { machineName = it }
 
+        // ── de bestanden, en eentje dat faalt houdt de rest niet tegen ──
+        //
+        // Hier stond `return` in de vangst. Eén bestand dat niet wegkwam, en de ronde stopte: van
+        // een Unicontrol-werf van vijf stukken kwam alleen het eerste aan, en niemand kon zien dat
+        // er vier ontbraken. Nu gaat ze door en onthoudt ze wat er misging.
         val gedaan = ArrayList<String>()
+        val mislukt = ArrayList<String>()
+        var uitgesteld = 0
+        val nu = System.currentTimeMillis()
+
         for (f in res.files) {
-            try { schrijf(tree, f.subfolder, f.name, api.download(f.url)); gedaan.add(f.id) }
-            catch (e: Exception) { lastStatus = "${f.name}: ${e.message}"; return }
+            // Een bestand dat blijft weigeren, niet elke vijf seconden opnieuw over een werf-4G
+            // slepen. Na elke misser duurt het langer voor we het opnieuw proberen — tot tien
+            // minuten. Opgeven doen we niet: wat het ook was, het kan morgen over zijn.
+            val wacht = later[f.id]
+            if (wacht != null && wacht > nu) { uitgesteld++; continue }
+
+            try {
+                schrijf(tree, f.subfolder, f.name) { uit -> api.download(f.url, uit) }
+                gedaan.add(f.id)
+                later.remove(f.id); pogingen.remove(f.id)
+            } catch (e: Exception) {
+                val n = (pogingen[f.id] ?: 0) + 1
+                pogingen[f.id] = n
+                later[f.id] = nu + minOf(30_000L * (1L shl minOf(n - 1, 5)), 600_000L)
+                mislukt.add(f.name)
+                lastStatus = "${f.name}: ${e.message}"
+            }
         }
+
+        // Bevestigen wat gelukt is, ook als er iets misging. Anders blijft een werf die op één
+        // bestand na binnen is, in zijn geheel in de wachtrij staan.
         if (gedaan.isNotEmpty()) api.confirm(gedaan)
 
-        lastOk = System.currentTimeMillis()
-        lastStatus = if (gedaan.isEmpty()) "bij" else "${gedaan.size} bestand(en) binnengehaald"
+        lastFout = if (mislukt.isEmpty()) null
+            else if (mislukt.size == 1) "${mislukt[0]} kon niet weggeschreven worden."
+            else "${mislukt.size} bestanden konden niet weggeschreven worden."
+        lastStatus = when {
+            mislukt.isNotEmpty() -> lastStatus
+            gedaan.isNotEmpty() -> "${gedaan.size} bestand(en) binnengehaald"
+            uitgesteld > 0 -> "$uitgesteld wacht(en) op een nieuwe poging"
+            else -> "bij"
+        }
     }
 
     /**
@@ -116,15 +175,36 @@ class SyncService : Service() {
      * Bestaat het al, dan gaat het oude er eerst uit. Android maakt anders "Project (1).yml"
      * ernaast, en dan staat er in Unicontrol een werf die niemand bijwerkt.
      */
-    private fun schrijf(root: DocumentFile, submap: String?, naam: String, bytes: ByteArray) {
+    private fun schrijf(root: DocumentFile, submap: String?, naam: String, vul: (OutputStream) -> Unit) {
         var dir = root
         submap?.split('/')?.filter { it.isNotBlank() }?.forEach { deel ->
             dir = dir.findFile(deel)?.takeIf { it.isDirectory } ?: dir.createDirectory(deel) ?: dir
         }
         dir.findFile(naam)?.delete()
-        val doc = dir.createFile("application/octet-stream", naam) ?: throw RuntimeException("kon $naam niet aanmaken")
-        contentResolver.openOutputStream(doc.uri)?.use { it.write(bytes) }
+
+        // Het mime-type uit de extensie halen, en niet altijd octet-stream opgeven.
+        //
+        // Android bepaalt de naam op schijf mede uit het mime-type: past de extensie er niet bij,
+        // dan plakt het de zijne erachter. "werf.xml" met octet-stream wordt zo "werf.xml.bin".
+        // Voor ons ziet dat eruit als gelukt — het bestand staat er, de wachtrij is leeg — maar
+        // Unicontrol zoekt naar werf.xml en vindt niets. Dan is de werf overgekomen en toch niet
+        // te zien, en er staat nergens een fout.
+        val doc = dir.createFile(mimeVan(naam), naam) ?: throw RuntimeException("kon $naam niet aanmaken")
+
+        // En als het toch gebeurde, zetten we de naam terug.
+        if (doc.name != naam) {
+            try { DocumentsContract.renameDocument(contentResolver, doc.uri, naam) } catch (_: Exception) { }
+        }
+
+        contentResolver.openOutputStream(doc.uri)?.use { vul(it) }
             ?: throw RuntimeException("kon $naam niet schrijven")
+    }
+
+    /** Het mime-type dat bij deze extensie hoort, of octet-stream als Android het niet kent. */
+    private fun mimeVan(naam: String): String {
+        val ext = naam.substringAfterLast('.', "").lowercase()
+        if (ext.isEmpty()) return "application/octet-stream"
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
     }
 
     private fun notification(text: String): Notification {

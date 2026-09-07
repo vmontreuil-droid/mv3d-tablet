@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.OutputStream
 import java.util.concurrent.TimeUnit
 
 /** Eén bestand dat op de tablet moet komen, met de map waarin het hoort. */
@@ -80,12 +81,20 @@ class Api(private val server: String, private val code: String) {
      */
     fun verifyCode(): Boolean = try { sync(null); true } catch (_: Exception) { false }
 
-    /** Het bestand zelf. De koppeling komt uit sync() en is een kwartier geldig. */
-    fun download(url: String): ByteArray {
+    /**
+     * Het bestand zelf, rechtstreeks de map in. De koppeling komt uit sync() en is een kwartier geldig.
+     *
+     * Het gaat met een straaltje en niet in één hap. Hier stond `body.bytes()`, en dat zet het hele
+     * bestand in het geheugen van de tablet — een lijnenplan van een parking is tweehonderd
+     * megabyte, en de goedkope tablets in een cabine hebben dat niet. Dan valt het om met een
+     * OutOfMemory, en dat leest op het scherm als "er is niets doorgekomen".
+     */
+    fun download(url: String, uit: OutputStream) {
         val req = Request.Builder().url(url).build()
         http.newCall(req).execute().use { r ->
             if (!r.isSuccessful) throw RuntimeException("download ${r.code}")
-            return r.body?.bytes() ?: ByteArray(0)
+            val body = r.body ?: throw RuntimeException("download: leeg antwoord")
+            body.byteStream().use { it.copyTo(uit, 64 * 1024) }
         }
     }
 }

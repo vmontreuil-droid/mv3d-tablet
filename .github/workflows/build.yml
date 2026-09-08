@@ -1,7 +1,13 @@
 name: APK bouwen
 
-# Bouwt bij elke push een debug-APK en publiceert die als GitHub Release,
-# zodat de tablet-app zichzelf kan bijwerken (Updater checkt /releases/latest).
+# Bouwt bij elke push een APK en publiceert die als GitHub Release, zodat de tablet-app zichzelf
+# kan bijwerken (Updater checkt /releases/latest).
+#
+# Een RELEASE-bouw, geen debug. Dat was het lang wel, en Play Protect gooide de app er daarom af:
+# een debug-bouw draagt android:debuggable="true" in zich, en een app die dat zegt én van buiten
+# de Play Store komt, is precies het profiel waar de beveiliging op afgaat. De ondertekening was
+# altijd al in orde — een vaste sleutel, zodat een bijwerking over de vorige heen mag — dus het
+# kostte niets om dit recht te zetten.
 on:
   push:
     branches: [ main, master ]
@@ -29,16 +35,16 @@ jobs:
       - name: Gradle-wrapper genereren
         run: gradle wrapper --gradle-version 8.9
 
-      - name: Debug-APK bouwen (versionCode = run-nummer)
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace -PappVersionCode=${{ github.run_number }} -PappVersionName=0.${{ github.run_number }}
+      - name: APK bouwen (versionCode = run-nummer)
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace -PappVersionCode=${{ github.run_number }} -PappVersionName=0.${{ github.run_number }}
 
       - name: APK klaarzetten
-        run: cp app/build/outputs/apk/debug/app-debug.apk mv3d-machine.apk
+        run: cp app/build/outputs/apk/release/app-release.apk mv3d-machine.apk
 
       - name: APK uploaden als artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mv3d-machine-debug-apk
+          name: mv3d-machine-apk
           path: mv3d-machine.apk
           if-no-files-found: error
 

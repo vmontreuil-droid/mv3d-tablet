@@ -72,11 +72,13 @@ private val Mv3dColors = darkColorScheme(
  * De hele app, in één scherm.
  *
  * De koppelcode groot in het midden, en eronder een bolletje dat zegt of het werkt. Meer is er
- * niet, en meer hoeft er ook niet: wat er van kantoor komt, staat vanzelf in Unicontrol.
+ * niet, en meer hoeft er ook niet: wat er van kantoor komt, staat vanzelf in het programma dat
+ * op dit toestel draait.
  *
- * De map zoekt de app zelf. De kiezer gaat vanzelf open op de map van Unicontrol en de machinist
- * duwt één keer op "Deze map gebruiken". Mag de app een map uit een eerdere installatie nog
- * gebruiken, dan slaan we die stap over en is de code werkelijk het enige.
+ * De map zoekt de app zelf. De kiezer gaat vanzelf open op de map van het programma dat erop
+ * draait — Unicontrol in een kraan, Trimble Access op een veldcomputer — en de gebruiker duwt één
+ * keer op "Deze map gebruiken". Mag de app een map uit een eerdere installatie nog gebruiken, dan
+ * slaan we die stap over en is de code werkelijk het enige.
  */
 class MainActivity : ComponentActivity() {
 
@@ -94,7 +96,7 @@ class MainActivity : ComponentActivity() {
                     val code by prefs.codeFlow.collectAsState(initial = "")
                     val tree by prefs.treeFlow.collectAsState(initial = "")
 
-                    // De mappenkiezer, al opengezet op de map van Unicontrol. Blijvende toestemming
+                    // De mappenkiezer, al opengezet op de map die we verwachten. Blijvende toestemming
                     // vragen is geen luxe: zonder dat is ze na een herstart weg en staat er 's
                     // morgens niets klaar, zonder dat iemand weet waarom.
                     val kiesMap = rememberLauncherForActivityResult(
@@ -124,14 +126,14 @@ class MainActivity : ComponentActivity() {
                                     // De map erbij zoeken. Mag er al een — bij een herinstallatie
                                     // blijft de toestemming soms staan — dan is de code werkelijk
                                     // het enige geweest wat hij moest doen.
-                                    val alGegeven = Unicontrol.alGegeven(ctx)
+                                    val alGegeven = Veldmap.alGegeven(ctx)
                                     if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync(); Batterij.vraag(ctx) }
-                                    else kiesMap.launch(Unicontrol.kiezer())
+                                    else kiesMap.launch(Veldmap.kiezer())
                                 }
                                 klaar(goed)
                             }
                         },
-                        onKiesMap = { kiesMap.launch(Unicontrol.kiezer()) },
+                        onKiesMap = { kiesMap.launch(Veldmap.kiezer()) },
                         onBatterij = { Batterij.vraag(ctx) },
                         onBijwerken = { Updater.installeer(ctx, SyncService.updateKlaar) },
                         onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
@@ -378,7 +380,7 @@ private fun Scherm (
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "De kiezer staat al op de map van Unicontrol. Duw op Deze map gebruiken.",
+                "De kiezer staat al op de map die we verwachten. Duw op Deze map gebruiken.",
                 fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
             )
         }

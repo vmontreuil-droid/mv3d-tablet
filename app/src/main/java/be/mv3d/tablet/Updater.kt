@@ -68,6 +68,19 @@ object Updater {
     /** Het bestand waarin build <n> komt te staan. */
     fun bestand(ctx: Context, versionCode: Int) = File(ctx.cacheDir, "mv3d-machine-$versionCode.apk")
 
+    /**
+     * De klaargezette apk's weghalen.
+     *
+     * Voor na een geslaagde bijwerking: dat bestand is dan honderd megabyte die niets meer doet,
+     * op een tablet die er weinig heeft. En zolang het er ligt, denkt de app dat er nog iets klaar
+     * staat.
+     */
+    fun ruimOp(ctx: Context) {
+        try {
+            ctx.cacheDir.listFiles()?.forEach { if (it.name.startsWith("mv3d-machine-")) it.delete() }
+        } catch (_: Exception) { }
+    }
+
     /** Staat build <n> al klaar? Een half binnengehaald bestand telt niet mee. */
     fun staatKlaar(ctx: Context, versionCode: Int): Boolean {
         val f = bestand(ctx, versionCode)

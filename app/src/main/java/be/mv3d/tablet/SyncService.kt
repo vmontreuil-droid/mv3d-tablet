@@ -109,7 +109,24 @@ class SyncService : Service() {
     private suspend fun bijwerken() {
         // Staat er al iets klaar, dan is er niets te doen — behalve het onthouden na een herstart.
         val alKlaar = prefs.klaar()
-        if (alKlaar > 0) {
+
+        // Tenzij het intussen geïnstalleerd is. Dan hoort het klaargezette bestand weg.
+        //
+        // Zonder dit blijft de app voor eeuwig hangen op de versie die ze al draait: het merkje
+        // "build 90 staat klaar" bleef staan nadat build 90 geïnstalleerd was, de apk bleef in de
+        // cache liggen, en deze functie keerde elke ronde meteen terug — dus werd er nooit meer
+        // gekeken of er een 91 was. Precies wat er gebeurde.
+        if (alKlaar in 1..BuildConfig.VERSION_CODE) {
+            prefs.wisKlaar()
+            updateKlaar = 0
+            Updater.ruimOp(this)
+            try {
+                (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(2)
+            } catch (_: Exception) { }
+            // En meteen opnieuw kijken in plaats van een dag te wachten: wie net bijgewerkt heeft,
+            // hoort niet een dag achter te lopen op de versie die daarna kwam.
+            prefs.setGekeken(0)
+        } else if (alKlaar > 0) {
             if (Updater.staatKlaar(this, alKlaar)) {
                 if (updateKlaar != alKlaar) {
                     updateKlaar = alKlaar; updateNaam = prefs.klaarNaam()

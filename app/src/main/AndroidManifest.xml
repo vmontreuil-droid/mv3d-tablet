@@ -59,6 +59,12 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
+            <!-- Na een bijwerking van de app zelf. Android stopt een app die vervangen wordt; zonder
+                 dit bleef de dienst liggen tot iemand de app opende, en stond de kraan intussen in
+                 het portaal als "niet gekoppeld". -->
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
 
         <!-- Voor de eigen bijwerking: de gedownloade apk aan de installer van Android geven. -->

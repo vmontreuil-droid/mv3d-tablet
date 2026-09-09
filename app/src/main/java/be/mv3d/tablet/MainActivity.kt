@@ -183,6 +183,16 @@ private fun Merk (bergHoogte: Int = 72, tekstMaat: Int = 26) {
         )
         Spacer(Modifier.height(6.dp))
         Text("MV3D", fontSize = tekstMaat.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp, color = Tekst)
+        // Welke versie hier draait, klein onder de naam.
+        //
+        // Zonder dit is er geen enkele manier om het te zien: er is geen menu, geen "over"-scherm,
+        // en de instellingen van Android tonen alleen het nummer dat de Play Store kent — dat weet
+        // van een zij-geladen app niets. Wie belt met "hij doet raar", weet nu ten minste met welke
+        // versie hij belt. Het buildnummer erbij, want dáár praten we over.
+        Text(
+            "versie ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",
+            fontSize = 11.sp, color = TekstZacht, letterSpacing = 0.5.sp,
+        )
     }
 }
 

@@ -197,19 +197,62 @@ class SyncService : Service() {
             }
         }
 
+        // ── en wat er van hier wég moet ──
+        //
+        // Het portaal kan vragen om een bestand terug te sturen: een aangepast ontwerp, een
+        // as-built. Alleen wat in de gekozen map staat, en alleen wat gevraagd is. Twee per ronde:
+        // een tablet in een cabine hangt aan een werf-4G, en dit mag het binnenhalen van een
+        // nieuwe werf niet in de weg zitten.
+        val opgestuurd = ArrayList<PullResult>()
+        for (q in res.pull.take(2)) {
+            try {
+                val doc = zoekBestand(tree, q.path) ?: throw RuntimeException("staat er niet meer")
+                val lengte = doc.length()
+                api.upload(q.url, q.token, lengte) {
+                    contentResolver.openInputStream(doc.uri)
+                        ?: throw RuntimeException("kon niet gelezen worden")
+                }
+                opgestuurd.add(PullResult(q.id, true, lengte, null))
+            } catch (e: Exception) {
+                opgestuurd.add(PullResult(q.id, false, 0L, e.message ?: "onbekend"))
+            }
+        }
+
         // Bevestigen wat gelukt is, ook als er iets misging. Anders blijft een werf die op één
         // bestand na binnen is, in zijn geheel in de wachtrij staan.
-        if (gedaan.isNotEmpty()) api.confirm(gedaan)
+        if (gedaan.isNotEmpty() || opgestuurd.isNotEmpty()) api.confirm(gedaan, opgestuurd)
 
         lastFout = if (mislukt.isEmpty()) null
             else if (mislukt.size == 1) "${mislukt[0]} kon niet weggeschreven worden."
             else "${mislukt.size} bestanden konden niet weggeschreven worden."
+        val weg = opgestuurd.count { it.ok }
         lastStatus = when {
             mislukt.isNotEmpty() -> lastStatus
             gedaan.isNotEmpty() -> "${gedaan.size} bestand(en) binnengehaald"
+            weg > 0 -> "$weg bestand(en) opgestuurd"
             uitgesteld > 0 -> "$uitgesteld wacht(en) op een nieuwe poging"
             else -> "bij"
         }
+    }
+
+    /**
+     * Eén bestand terugvinden aan het pad dat wij zelf gemeld hebben.
+     *
+     * Dat pad komt uit onze eigen mappenlijst, dus het hoort te bestaan — maar tussen die lijst en
+     * deze vraag kan er een dag zitten. Vindt hij het niet, dan zeggen we dat, en dan staat er in
+     * het portaal "staat er niet meer" in plaats van een opdracht die eeuwig op "bezig" blijft.
+     */
+    private fun zoekBestand(tree: DocumentFile, pad: String): DocumentFile? {
+        val delen = pad.replace('\\', '/').split('/').filter { it.isNotBlank() && it != ".." }
+        if (delen.isEmpty()) return null
+        var hier: DocumentFile = tree
+        for ((i, deel) in delen.withIndex()) {
+            val volgende = hier.findFile(deel) ?: return null
+            if (i == delen.lastIndex) return if (volgende.isFile) volgende else null
+            if (!volgende.isDirectory) return null
+            hier = volgende
+        }
+        return null
     }
 
     /**

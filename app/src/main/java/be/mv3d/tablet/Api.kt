@@ -11,8 +11,24 @@ import java.util.concurrent.TimeUnit
 /** Eén bestand dat op de tablet moet komen, met de map waarin het hoort. */
 data class RemoteFile(val id: String, val name: String, val url: String, val subfolder: String?)
 
+/**
+ * Eén bestand dat het portaal van deze tablet wil hebben.
+ *
+ * De andere richting dan de rest: hier gaat er iets ván de tablet weg. Alleen op vraag — het
+ * portaal zet een opdracht klaar, wij voeren ze uit. De koppeling waar het heen mag, komt mee.
+ */
+data class PullFile(val id: String, val path: String, val url: String, val token: String)
+
+/** Wat er van één opdracht terechtkwam. */
+data class PullResult(val id: String, val ok: Boolean, val bytes: Long, val error: String?)
+
 /** Wat de server terugstuurt bij een ronde. */
-data class SyncResult(val files: List<RemoteFile>, val guidance: String?, val name: String?)
+data class SyncResult(
+    val files: List<RemoteFile>,
+    val guidance: String?,
+    val name: String?,
+    val pull: List<PullFile> = emptyList(),
+)
 
 /**
  * De hele omgang met mv3d.be, in drie handelingen.
@@ -54,22 +70,80 @@ class Api(private val server: String, private val code: String) {
                     ))
                 }
             }
+            // En wat het portaal van ons wil hebben.
+            val pull = ArrayList<PullFile>()
+            o.optJSONArray("pull")?.let {
+                for (i in 0 until it.length()) {
+                    val q = it.getJSONObject(i)
+                    pull.add(PullFile(
+                        q.optString("id"), q.optString("path"),
+                        q.optString("url"), q.optString("token"),
+                    ))
+                }
+            }
             return SyncResult(
                 files,
                 o.optString("guidance_system").ifEmpty { null },
                 o.optString("name").ifEmpty { null },
+                pull,
             )
         }
     }
 
-    /** PATCH /api/machines/sync — pas als dit gelukt is, is een bestand van de wachtrij af. */
-    fun confirm(transferIds: List<String>) {
-        if (transferIds.isEmpty()) return
+    /**
+     * PATCH /api/machines/sync — pas als dit gelukt is, is een bestand van de wachtrij af.
+     *
+     * De opgestuurde bestanden gaan in dezelfde beweging mee. Mislukt er één, dan hoort dat erbij
+     * te staan: een opdracht die blijft hangen op "bezig" ziet eruit als een tablet die niet
+     * antwoordt, terwijl het bestand gewoon weg was.
+     */
+    fun confirm(transferIds: List<String>, pulled: List<PullResult> = emptyList()) {
+        if (transferIds.isEmpty() && pulled.isEmpty()) return
         val body = JSONObject().put("connection_code", code)
-        body.put("transfer_ids", org.json.JSONArray(transferIds))
+        if (transferIds.isNotEmpty()) body.put("transfer_ids", org.json.JSONArray(transferIds))
+        if (pulled.isNotEmpty()) {
+            val arr = org.json.JSONArray()
+            for (p in pulled) {
+                val o = JSONObject().put("id", p.id).put("ok", p.ok)
+                if (p.ok) o.put("bytes", p.bytes) else o.put("error", p.error ?: "onbekend")
+                arr.put(o)
+            }
+            body.put("pulled", arr)
+        }
         val req = Request.Builder().url("$server/api/machines/sync")
             .patch(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().close()
+    }
+
+    /**
+     * Een bestand van de tablet naar de opslag sturen, met de koppeling die de server meegaf.
+     *
+     * Met een straaltje, om dezelfde reden als bij het binnenhalen: een lijnenplan van een parking
+     * is tweehonderd megabyte, en de goedkope tablets in een cabine hebben dat geheugen niet.
+     */
+    fun upload(url: String, token: String, lengte: Long, lees: () -> java.io.InputStream): Long {
+        val lichaam = object : okhttp3.RequestBody() {
+            override fun contentType() = "application/octet-stream".toMediaType()
+            override fun contentLength() = lengte
+            override fun writeTo(sink: okio.BufferedSink) {
+                lees().use { bron ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = bron.read(buf)
+                        if (n <= 0) break
+                        sink.write(buf, 0, n)
+                    }
+                }
+            }
+        }
+        val req = Request.Builder().url(url)
+            .header("authorization", "Bearer $token")
+            .header("x-upsert", "true")
+            .put(lichaam).build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) throw RuntimeException("opsturen ${r.code}")
+        }
+        return lengte
     }
 
     /**

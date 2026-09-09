@@ -181,7 +181,28 @@ class SyncService : Service() {
         val tree = DocumentFile.fromTreeUri(this, Uri.parse(treeStr))
             ?: run { lastStatus = "map ongeldig"; lastFout = "De map is niet meer bereikbaar. Wijs ze opnieuw aan."; return }
 
-        val res = api.sync(mappenlijst(tree))
+        // ── kan hij er werkelijk in kijken? ──
+        //
+        // fromTreeUri geeft altijd iets terug, ook als de toestemming weg is. Android geeft die
+        // toestemming per installatie: na het bijwerken van de app blijft het onthouden adres staan
+        // maar is de sleutel weg. Dan ziet de app een map die bestaat en leeg is.
+        //
+        // Gemeten, en het was duur. Na build 96 meldde deze tablet nul bestanden waar er honderd-
+        // vierentwintig stonden, en die lege lijst overschreef op de server de goede: in het
+        // portaal verdwenen achtentwintig werven alsof ze gewist waren. Ondertussen zei het scherm
+        // "gekoppeld" en klopte de app rustig elke vijf seconden aan.
+        //
+        // Dus: geen naam of niet leesbaar is geen lege map maar een gesloten deur. We melden ons
+        // wel — anders lijkt het toestel offline en zoek je het in de verkeerde hoek — maar we
+        // sturen géén lijst mee. Wat de server weet blijft dan staan tot de map weer open is.
+        val leesbaar = tree.name != null && tree.canRead()
+        if (!leesbaar) {
+            lastStatus = "map niet bereikbaar"
+            lastFout = "De app mag niet meer in de gekozen map. Dat gebeurt na het bijwerken: " +
+                "tik op \"Map aanwijzen\" en kies ze opnieuw."
+        }
+
+        val res = api.sync(if (leesbaar) mappenlijst(tree) else null)
 
         // Er is contact geweest. Dat tekenen we hier, en niet onderaan.
         //

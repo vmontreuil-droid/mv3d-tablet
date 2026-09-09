@@ -46,6 +46,12 @@ class SyncService : Service() {
     private val pogingen = HashMap<String, Int>()
     private val later = HashMap<String, Long>()
 
+    /** Waar een werf ligt: oosting, noording en de naam van het stelsel zoals de tablet die meldt. */
+    private data class Plek(val x: Double, val z: Double, val cs: String)
+
+    /** Wat we al uit een Project.yml gelezen hebben: werf → (datum van dat bestand, plek). */
+    private val plekGeheugen = HashMap<String, Pair<Long, Plek?>>()
+
     companion object {
         const val CHANNEL = "mv3d_sync"
         /** Een tweede kanaal, want deze melding mág gezien worden. De sync-melding niet. */
@@ -281,13 +287,22 @@ class SyncService : Service() {
      */
     private fun mappenlijst(tree: DocumentFile): JSONObject? = try {
         val files = JSONArray()
+        val ymls = ArrayList<Triple<String, DocumentFile, Long>>()
         fun loop(dir: DocumentFile, prefix: String, diepte: Int) {
             if (diepte > 5 || files.length() >= 800) return
             for (f in dir.listFiles()) {
                 val nm = f.name ?: continue
                 val rel = if (prefix.isEmpty()) nm else "$prefix/$nm"
                 if (f.isDirectory) loop(f, rel, diepte + 1)
-                else files.put(JSONObject().put("path", rel).put("size", f.length()).put("m", f.lastModified()))
+                else {
+                    files.put(JSONObject().put("path", rel).put("size", f.length()).put("m", f.lastModified()))
+                    // Elke Unicontrol-werf draagt er een, en er staat in waar ze ligt. We pikken ze
+                    // hier op omdat we hier tóch al langslopen; het lezen gebeurt straks, en alleen
+                    // voor de werven waarvan we het antwoord nog niet hebben.
+                    if (nm.equals("Project.yml", ignoreCase = true) && prefix.isNotEmpty()) {
+                        ymls.add(Triple(prefix, f, f.lastModified()))
+                    }
+                }
             }
         }
         loop(tree, "", 0)
@@ -300,7 +315,90 @@ class SyncService : Service() {
             .put("root", tree.name ?: "")
             .put("rootUri", tree.uri.toString())
             .put("files", files)
+            .put("plekken", plekken(ymls))
     } catch (_: Exception) { null }
+
+    /**
+     * Waar liggen die werven?
+     *
+     * Het portaal kan de namen tonen maar niet de plek, en een werf zonder plek staat niet op een
+     * kaart. Dat getal staat nochtans op deze tablet: elke Unicontrol-werf heeft een `Project.yml`
+     * met daarin de laatst bekende plek van de machine en het stelsel waarin ze rekent.
+     *
+     * Wat we meesturen zijn vier waarden per werf, geen bestanden: de map, x, z en de naam van het
+     * stelsel. Omrekenen naar breedte en lengte gebeurt op de server — daar staat de tabel met de
+     * stelsels, en die hoort niet twee keer te bestaan.
+     *
+     * ── waarom x en z en niet x en y ──
+     *
+     * Unicontrol rekent zoals een spelmotor: y wijst omhoog. Het grondvlak is x/z. Nagemeten op een
+     * project uit 2022 in Athus — x 254490, y 39,75, z 27943 — en dat valt in Lambert 72 precies op
+     * Athus. Wie x en y neemt, komt in de Noordzee uit.
+     */
+    private fun plekken(ymls: List<Triple<String, DocumentFile, Long>>): JSONArray {
+        val uit = JSONArray()
+        var gelezen = 0
+        for ((map, doc, datum) in ymls) {
+            // Niet alleen de bovenste laag. Waar de werven staan hangt af van welke map de
+            // machinist aangewezen heeft: wijst hij CloudProjects aan, dan ligt een werf één laag
+            // diep; wijst hij de map erboven aan, dan twee. We sturen het volledige pad mee en
+            // laten de server de naam eruit halen — die weet toch al waar de werven beginnen.
+            if (map.count { it == '/' } > 3) continue
+
+            // Al gelezen en niets veranderd? Dan niet opnieuw. Een tablet met tientallen werven
+            // hangt aan een werf-4G en doet dit elke ronde; één keer lezen is genoeg.
+            val onthouden = plekGeheugen[map]
+            val plek = if (onthouden != null && onthouden.first == datum) onthouden.second else {
+                if (gelezen >= 80) continue
+                gelezen++
+                val p = leesPlek(doc)
+                plekGeheugen[map] = Pair(datum, p)
+                p
+            }
+            if (plek != null) uit.put(JSONObject().put("map", map).put("x", plek.x).put("z", plek.z).put("cs", plek.cs))
+        }
+        return uit
+    }
+
+    /** De laatst bekende plek uit één Project.yml, of null als er niets bruikbaars in staat. */
+    private fun leesPlek(doc: DocumentFile): Plek? = try {
+        // Een Project.yml is een paar honderd bytes. Staat er meer, dan is het iets anders en
+        // lezen we het niet — een tablet hoort geen megabytes te lezen voor een speld.
+        if (doc.length() > 64 * 1024) null else {
+            val tekst = contentResolver.openInputStream(doc.uri)?.use { it.readBytes().decodeToString() } ?: ""
+            val regels = tekst.split('\n')
+
+            // `x:` staat er twee keer: onder LastKnownPosition en onder SimulatorPosition. Die
+            // tweede is de plek van een demo en heeft niets met de werf te maken — op een echt
+            // bestand stond daar 427330/1108260, wat nergens in België ligt. Dus zoeken we vanaf
+            // de regel LastKnownPosition en niet in het hele bestand.
+            val start = regels.indexOfFirst { it.trim().startsWith("LastKnownPosition:") }
+            if (start < 0) null else {
+                val venster = regels.drop(start + 1).take(6)
+                val x = getal(venster, "x")
+                val z = getal(venster, "z")
+
+                // En het stelsel. `RadioCoordinateSystem` staat er ook en is iets anders, dus de
+                // regel moet er precies mee beginnen.
+                val cs = regels.firstOrNull { it.trim().startsWith("CoordinateSystem:") }
+                    ?.substringAfter(':')?.trim()?.trim('\'', '"') ?: ""
+
+                // Een werf die nooit geopend is, draagt een plek van nul — of van een paar meter,
+                // want dan staat het ontwerp in een plaatselijk stelsel. Gemeten op echte werven:
+                // 0,0008 / 0,0094 en −6,34 / −14,51 en 231 / 74. Geen enkel landelijk stelsel komt
+                // onder de duizend uit, dus dat is de grens. Zo'n werf blijft gewoon in de lijst
+                // staan, alleen zonder speld.
+                if (x == null || z == null || cs.isEmpty()) null
+                else if (kotlin.math.abs(x) < 1000 || kotlin.math.abs(z) < 1000) null
+                else Plek(x, z, cs)
+            }
+        }
+    } catch (_: Exception) { null }
+
+    /** `    x: 254490.5931` → 254490.5931 */
+    private fun getal(regels: List<String>, sleutel: String): Double? =
+        regels.firstOrNull { it.trim().startsWith("$sleutel:") }
+            ?.substringAfter(':')?.trim()?.toDoubleOrNull()
 
     /**
      * Een bestand neerzetten, mappen aanmakend waar ze ontbreken.

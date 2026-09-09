@@ -54,6 +54,10 @@ class Api(private val server: String, private val code: String) {
     fun sync(listing: JSONObject?): SyncResult {
         val body = JSONObject().put("connection_code", code)
         if (listing != null) body.put("listing", listing)
+        // Welke app en welke versie. Bij "hij doet raar" was dat altijd de eerste vraag, en het
+        // antwoord moest van de machinist komen — die daarvoor uit zijn kraan moest klimmen.
+        body.put("app", "tablet")
+        body.put("app_version", "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->

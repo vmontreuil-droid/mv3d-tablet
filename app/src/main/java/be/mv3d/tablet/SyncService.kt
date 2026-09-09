@@ -291,7 +291,15 @@ class SyncService : Service() {
             }
         }
         loop(tree, "", 0)
-        JSONObject().put("root", tree.name ?: "").put("files", files)
+        // De naam van de map én waar ze staat.
+        //
+        // Alleen de naam is niet genoeg gebleken: op één toestel stonden er twee mappen die
+        // allebei "CloudProjects" heten, en dan lees je in het portaal een lijst die je op de
+        // tablet nergens terugvindt. Het volledige adres zegt welke van de twee het is.
+        JSONObject()
+            .put("root", tree.name ?: "")
+            .put("rootUri", tree.uri.toString())
+            .put("files", files)
     } catch (_: Exception) { null }
 
     /**

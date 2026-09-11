@@ -319,20 +319,54 @@ class SyncService : Service() {
             }
         }
 
+        // ── en werfmappen die een andere naam krijgen ──
+        //
+        // Gevraagd vanuit de Convertor: de naam van een werf wijzigen, ook hier op de tablet. Bij
+        // Unicontrol is de naam van de map de naam van de werf, en het Project.yml verwijst alleen
+        // naar bestanden ín die map — dus de map hernoemen volstaat, en de rest blijft kloppen.
+        //
+        // Alleen de map zelf, alleen als ze er nog is, en nooit over een map heen die al zo heet:
+        // twee werven samenvoegen is geen hernoemen.
+        val hernoemd = ArrayList<PullResult>()
+        for (q in res.hernoem.take(10)) {
+            try {
+                val delen = q.path.replace('\\', '/').split('/').filter { it.isNotBlank() && it != ".." }
+                if (delen.isEmpty()) throw RuntimeException("geen werfmap opgegeven")
+                val naar = q.naar.trim()
+                if (naar.isEmpty() || naar == "." || naar == ".." || naar.any { it in "/\\:*?\"<>|" }) {
+                    throw RuntimeException("die naam kan geen map zijn")
+                }
+                val map = zoekMap(delen) ?: throw RuntimeException("de werf staat er niet meer")
+                val ouder = if (delen.size > 1) zoekMap(delen.dropLast(1)) else tree
+                if (ouder == null) throw RuntimeException("de bovenliggende map staat er niet meer")
+                if (ouder.listFiles().any { (it.name ?: "").equals(naar, ignoreCase = true) }) {
+                    throw RuntimeException("er staat al een werf met die naam")
+                }
+                if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
+                hernoemd.add(PullResult(q.id, true, 0L, null))
+            } catch (e: Exception) {
+                hernoemd.add(PullResult(q.id, false, 0L, e.message ?: "onbekend"))
+            }
+        }
+
         // Bevestigen wat gelukt is, ook als er iets misging. Anders blijft een werf die op één
         // bestand na binnen is, in zijn geheel in de wachtrij staan.
-        if (gedaan.isNotEmpty() || opgestuurd.isNotEmpty() || gewist.isNotEmpty()) api.confirm(gedaan, opgestuurd, gewist)
+        if (gedaan.isNotEmpty() || opgestuurd.isNotEmpty() || gewist.isNotEmpty() || hernoemd.isNotEmpty()) {
+            api.confirm(gedaan, opgestuurd, gewist, hernoemd)
+        }
 
         lastFout = if (mislukt.isEmpty()) null
             else if (mislukt.size == 1) "${mislukt[0]} kon niet weggeschreven worden."
             else "${mislukt.size} bestanden konden niet weggeschreven worden."
         val weg = opgestuurd.count { it.ok }
         val af = gewist.count { it.ok }
+        val anders = hernoemd.count { it.ok }
         lastStatus = when {
             mislukt.isNotEmpty() -> lastStatus
             gedaan.isNotEmpty() -> "${gedaan.size} bestand(en) binnengehaald"
             weg > 0 -> "$weg bestand(en) opgestuurd"
             af > 0 -> "$af bestand(en) gewist"
+            anders > 0 -> "$anders werf(en) hernoemd"
             uitgesteld > 0 -> "$uitgesteld wacht(en) op een nieuwe poging"
             else -> "bij"
         }

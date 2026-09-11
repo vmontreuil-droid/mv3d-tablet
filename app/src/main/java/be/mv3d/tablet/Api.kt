@@ -23,9 +23,17 @@ data class PullFile(val id: String, val path: String, val url: String, val token
  * Eén bestand dat van de tablet af moet.
  *
  * Alleen een pad, en alleen een pad dat deze tablet zelf gemeld heeft: de server zeeft dat. Het
- * wordt gevraagd vanuit de Convertor, waar de naam van de werf eerst overgetypt moet worden.
+ * wordt gevraagd vanuit de Convertor, na een dubbele bevestiging.
  */
 data class RemoveFile(val id: String, val path: String)
+
+/**
+ * Een werfmap die een andere naam krijgt.
+ *
+ * Het pad is de map zoals deze tablet ze meldde; `naar` is alleen de nieuwe naam van die map, geen
+ * pad. Bij Unicontrol is de naam van de map de naam van de werf.
+ */
+data class RenameDir(val id: String, val path: String, val naar: String)
 
 /** Wat er van één opdracht terechtkwam. */
 data class PullResult(val id: String, val ok: Boolean, val bytes: Long, val error: String?)
@@ -37,6 +45,7 @@ data class SyncResult(
     val name: String?,
     val pull: List<PullFile> = emptyList(),
     val remove: List<RemoveFile> = emptyList(),
+    val hernoem: List<RenameDir> = emptyList(),
 )
 
 /**
@@ -69,11 +78,11 @@ class Api(private val server: String, private val code: String) {
         body.put("app_version", "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
         // ── wat deze versie kan ──
         //
-        // De builds die al in cabines hangen, kunnen niet wissen. Kreeg zo'n tablet toch een
-        // wisopdracht, dan bleef die een kwartier op "bezig" staan en gebeurde er niets — en in de
-        // Convertor stond "0/1" tot iemand het opgaf. Nu zegt de app het zelf, en deelt de server
-        // wissen alleen uit aan wie het meldt. Een oudere app krijgt meteen te horen waarom niet.
-        body.put("kan", org.json.JSONArray().put("wissen"))
+        // De builds die al in cabines hangen, kunnen niet wissen en niet hernoemen. Kreeg zo'n tablet
+        // toch zo'n opdracht, dan bleef die hangen en gebeurde er niets. Nu zegt de app het zelf, en
+        // deelt de server die opdrachten alleen uit aan wie het meldt. Een oudere app hoort meteen
+        // waarom niet.
+        body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen"))
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->
@@ -110,12 +119,23 @@ class Api(private val server: String, private val code: String) {
                     if (pad.isNotBlank()) remove.add(RemoveFile(q.optString("id"), pad))
                 }
             }
+            // En welke werfmappen een andere naam krijgen.
+            val hernoem = ArrayList<RenameDir>()
+            o.optJSONArray("hernoem")?.let {
+                for (i in 0 until it.length()) {
+                    val q = it.getJSONObject(i)
+                    val pad = q.optString("path")
+                    val naar = q.optString("naar")
+                    if (pad.isNotBlank() && naar.isNotBlank()) hernoem.add(RenameDir(q.optString("id"), pad, naar))
+                }
+            }
             return SyncResult(
                 files,
                 o.optString("guidance_system").ifEmpty { null },
                 o.optString("name").ifEmpty { null },
                 pull,
                 remove,
+                hernoem,
             )
         }
     }
@@ -123,20 +143,22 @@ class Api(private val server: String, private val code: String) {
     /**
      * PATCH /api/machines/sync — pas als dit gelukt is, is een bestand van de wachtrij af.
      *
-     * De opgestuurde en gewiste bestanden gaan in dezelfde beweging mee. Mislukt er één, dan hoort
-     * dat erbij te staan: een opdracht die blijft hangen op "bezig" ziet eruit als een tablet die
-     * niet antwoordt, terwijl het bestand gewoon weg was.
+     * De opgestuurde, gewiste en hernoemde dingen gaan in dezelfde beweging mee. Mislukt er één,
+     * dan hoort dat erbij te staan: een opdracht die blijft hangen op "bezig" ziet eruit als een
+     * tablet die niet antwoordt, terwijl er gewoon iets misliep.
      */
     fun confirm(
         transferIds: List<String>,
         pulled: List<PullResult> = emptyList(),
         removed: List<PullResult> = emptyList(),
+        hernoemd: List<PullResult> = emptyList(),
     ) {
-        if (transferIds.isEmpty() && pulled.isEmpty() && removed.isEmpty()) return
+        if (transferIds.isEmpty() && pulled.isEmpty() && removed.isEmpty() && hernoemd.isEmpty()) return
         val body = JSONObject().put("connection_code", code)
         if (transferIds.isNotEmpty()) body.put("transfer_ids", org.json.JSONArray(transferIds))
         if (pulled.isNotEmpty()) body.put("pulled", uitslagen(pulled))
         if (removed.isNotEmpty()) body.put("removed", uitslagen(removed))
+        if (hernoemd.isNotEmpty()) body.put("hernoemd", uitslagen(hernoemd))
         val req = Request.Builder().url("$server/api/machines/sync")
             .patch(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().close()

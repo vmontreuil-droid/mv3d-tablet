@@ -1,12 +1,23 @@
 package be.mv3d.tablet
 
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
+
+/**
+ * Wat de server zegt als dit toestel zich aanmeldt: zijn eigen code, en of kantoor die al
+ * ingetikt heeft. De naam is die van de machine, als ze er al een heeft.
+ */
+data class Aanmelding(val code: String, val gekoppeld: Boolean, val naam: String?)
 
 /** Eén bestand dat op de tablet moet komen, met de map waarin het hoort. */
 data class RemoteFile(val id: String, val name: String, val url: String, val subfolder: String?)
@@ -57,6 +68,103 @@ data class SyncResult(
  * vragen wat er klaarstaat, het ophalen, en zeggen dat het gelukt is.
  */
 class Api(private val server: String, private val code: String) {
+
+    // ── vóór er een code is ──
+    //
+    // Dit hoort niet bij een code, want er is er nog geen: het toestel vraagt er net één. Daarom
+    // staat het los van de rest, zonder code in de constructor.
+    companion object {
+        /** Kort geduld. Dit loopt om de vijf seconden terwijl iemand naar het scherm staat te kijken. */
+        private val kort by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build()
+        }
+
+        /** Wat we op dit toestel vonden. Eén keer zoeken is genoeg zolang de app draait. */
+        @Volatile private var gevonden: List<String>? = null
+
+        /**
+         * POST /api/machines/aanmelden — "ik ben er, welke code hoort bij mij, en heeft kantoor ze al?"
+         *
+         * Merk, model en de programma's gaan mee, zodat kantoor bij het toevoegen niets hoeft in te
+         * vullen: wie de code intikt, ziet meteen welk toestel het is en wat erop draait.
+         *
+         * Alles wat misloopt — geen internet, een oudere server die dit adres nog niet kent, een
+         * antwoord dat nergens op lijkt — geeft null. Het scherm blijft dan gewoon vragen, en de
+         * weg met de hand blijft open. Hier mag niets vastlopen.
+         */
+        fun aanmelden(ctx: Context, server: String, installatie: String): Aanmelding? {
+            return try {
+                val toestel = JSONObject()
+                    .put("merk", Build.MANUFACTURER ?: "")
+                    .put("model", Build.MODEL ?: "")
+                    .put("naam", toestelNaam(ctx))
+                val body = JSONObject()
+                    .put("installatie", installatie)
+                    .put("app", "tablet")
+                    .put("app_version", "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+                    .put("toestel", toestel)
+                    .put("programmas", JSONArray(programmas(ctx)))
+                val req = Request.Builder().url("$server/api/machines/aanmelden")
+                    .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+                kort.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return null
+                    val o = JSONObject(resp.body?.string() ?: return null)
+                    // Acht cijfers, of het is geen code. Een half antwoord op het scherm zetten is
+                    // erger dan even niets: dan tikt kantoor een nummer in dat niet bestaat.
+                    val code = o.optString("code")
+                    if (!o.optBoolean("ok") || code.length != 8 || !code.all { it.isDigit() }) return null
+                    Aanmelding(
+                        code,
+                        o.optBoolean("gekoppeld"),
+                        if (o.isNull("naam")) null else o.optString("naam").ifBlank { null },
+                    )
+                }
+            } catch (_: Exception) { null }
+        }
+
+        /** De naam die de eigenaar het toestel gaf, als Android die laat lezen; anders het model. */
+        private fun toestelNaam(ctx: Context): String = try {
+            Settings.Global.getString(ctx.contentResolver, Settings.Global.DEVICE_NAME)
+                ?.takeIf { it.isNotBlank() } ?: Build.MODEL
+        } catch (_: Exception) { Build.MODEL }
+
+        /**
+         * Welke van de programma's die we kennen, op dit toestel staan — de belangrijkste eerst.
+         *
+         * We zoeken niet op een vaste pakketnaam, want die kennen we niet zeker: Unicontrol staat niet
+         * in de Play Store, en Trimble noemt zijn pakketten niet overal hetzelfde. Wel op wat een
+         * machinist ook ziet: de naam van het pakket of van het icoon. Een app van een ander merk die
+         * toevallig "Unicontrol" heet (ayatec maakt er één) laten we liggen.
+         *
+         * Android 11 en later toont een app alleen de andere apps die ze in het manifest aankondigt;
+         * daar staat daarom "alles wat een icoon heeft". Dat is geen toestemming, en veel minder
+         * dan "alle pakketten".
+         *
+         * Het is een hint, geen waarheid. Vinden we niets, dan gaat er een lege lijst mee en raadt
+         * de server uit het model — en kantoor kan het bij het toevoegen altijd nog rechtzetten.
+         */
+        @Suppress("DEPRECATION")
+        private fun programmas(ctx: Context): List<String> {
+            gevonden?.let { return it }
+            val lijst = LinkedHashSet<String>()
+            try {
+                val pm = ctx.packageManager
+                val hoofd = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val namen = pm.queryIntentActivities(hoofd, 0).map {
+                    (it.activityInfo.packageName + " " + it.loadLabel(pm)).lowercase()
+                }
+                if (namen.any { it.contains("unicontrol") && !it.contains("ayatec") }) lijst.add("UNICONTROL")
+                if (namen.any { it.contains("trimble") && it.contains("access") }) lijst.add("TRIMBLE_ACCESS")
+                if (namen.any { it.contains("siteworks") }) lijst.add("TRIMBLE_SITEWORKS")
+                if (namen.any { it.contains("scs900") }) lijst.add("TRIMBLE_SCS900")
+            } catch (_: Exception) { return emptyList() }
+            return lijst.toList().also { gevonden = it }
+        }
+    }
+
     private val json = "application/json".toMediaType()
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)

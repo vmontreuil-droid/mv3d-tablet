@@ -30,6 +30,7 @@ class Prefs(private val ctx: Context) {
     private val GEKEKEN = longPreferencesKey("update_gekeken")
     private val KLAAR = intPreferencesKey("update_klaar")
     private val KLAARNAAM = stringPreferencesKey("update_klaar_naam")
+    private val INSTALLATIE = stringPreferencesKey("installatie")
 
     val codeFlow = ctx.dataStore.data.map { it[CODE] ?: "" }
     val serverFlow = ctx.dataStore.data.map { it[SERVER] ?: "https://mv3d.be" }
@@ -51,6 +52,34 @@ class Prefs(private val ctx: Context) {
     suspend fun setKlaar(code: Int, naam: String) = ctx.dataStore.edit { it[KLAAR] = code; it[KLAARNAAM] = naam }
     suspend fun wisKlaar() = ctx.dataStore.edit { it.remove(KLAAR); it.remove(KLAARNAAM) }
 
-    /** Ontkoppelen: de code en de map vergeten. Het adres van de server blijft staan. */
-    suspend fun wis() = ctx.dataStore.edit { it.remove(CODE); it.remove(TREE) }
+    // ── wie deze installatie is ──
+    //
+    // Een willekeurig id, één keer gemaakt en daarna bewaard. De server hangt er de code aan die
+    // dit toestel op zijn scherm toont: zelfde id, zelfde code — ook na een herstart, anders tikt
+    // kantoor een nummer in dat intussen al niet meer op het scherm staat.
+    //
+    // Het is geen serienummer en geen Android-id, en dat is bewust: het zegt niets over het toestel
+    // en het verdwijnt met de app. Meer hoeft het niet te doen dan deze installatie herkenbaar maken.
+    suspend fun installatie(): String {
+        ctx.dataStore.data.first()[INSTALLATIE]?.takeIf { it.isNotBlank() }?.let { return it }
+        val nieuw = java.util.UUID.randomUUID().toString()
+        var bewaard = nieuw
+        // In één beweging nakijken en wegschrijven: vragen twee rondes tegelijk, dan mogen ze niet
+        // elk een eigen id bedenken.
+        ctx.dataStore.edit { p ->
+            val al = p[INSTALLATIE]
+            if (al.isNullOrBlank()) p[INSTALLATIE] = nieuw else bewaard = al
+        }
+        return bewaard
+    }
+
+    /**
+     * Ontkoppelen: de code, de map én het id van de installatie vergeten. Het adres van de server
+     * blijft staan.
+     *
+     * Het id moet mee weg. Bleef het staan, dan kreeg het toestel bij de volgende vraag dezelfde,
+     * al geclaimde code terug — en koppelde het zichzelf meteen weer, precies terwijl iemand het
+     * net ontkoppeld had. Nu krijgt het een nieuw id en dus een nieuwe code.
+     */
+    suspend fun wis() = ctx.dataStore.edit { it.remove(CODE); it.remove(TREE); it.remove(INSTALLATIE) }
 }

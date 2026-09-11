@@ -9,6 +9,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -32,7 +38,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,6 +84,10 @@ private val Mv3dColors = darkColorScheme(
  * niet, en meer hoeft er ook niet: wat er van kantoor komt, staat vanzelf in het programma dat
  * op dit toestel draait.
  *
+ * Vóór het koppelen staat daar de eigen code van het toestel. Kantoor tikt die in bij "Toestel
+ * toevoegen", en de app merkt het zelf: niemand hoeft in de cabine iets in te tikken. Wie toch
+ * een code van kantoor kreeg, kan die nog altijd met de hand ingeven.
+ *
  * De map zoekt de app zelf. De kiezer gaat vanzelf open op de map van het programma dat erop
  * draait — Unicontrol in een kraan, Trimble Access op een veldcomputer — en de gebruiker duwt één
  * keer op "Deze map gebruiken". Mag de app een map uit een eerdere installatie nog gebruiken, dan
@@ -114,22 +127,69 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Wat er gebeurt zodra er een goede code is. Eén plek, want er zijn nu twee wegen
+                    // naar hier — met de hand ingetikt, of door kantoor geclaimd — en die horen
+                    // precies hetzelfde te doen.
+                    suspend fun gebruikCode(goede: String) {
+                        prefs.setCode(goede)
+                        // De map erbij zoeken. Mag er al een — bij een herinstallatie blijft de
+                        // toestemming soms staan — dan is de code werkelijk het enige geweest wat
+                        // hij moest doen.
+                        val alGegeven = Veldmap.alGegeven(ctx)
+                        if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync(); Batterij.vraag(ctx) }
+                        else kiesMap.launch(Veldmap.kiezer())
+                    }
+
+                    // ── de eigen code, zolang er nog geen koppeling is ──
+                    //
+                    // Om de vijf seconden vragen: "welke code hoort bij mij, en heeft kantoor ze al?"
+                    // Alleen terwijl het scherm open is. Een toestel dat in een la ligt, hoeft de
+                    // server niet te blijven roepen; opent iemand de app, dan vraagt ze meteen.
+                    var eigen by remember { mutableStateOf<Aanmelding?>(null) }
+                    var geenVerbinding by remember { mutableStateOf(false) }
+                    LaunchedEffect(code) {
+                        if (code.isNotBlank()) return@LaunchedEffect
+                        eigen = null; geenVerbinding = false
+                        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                            while (true) {
+                                // Wat bewaard is, telt — niet wat het scherm denkt. Bij het openen
+                                // staat de code hier even op leeg tot de voorkeuren gelezen zijn,
+                                // en een gekoppeld toestel hoort zich dan niet opnieuw aan te melden.
+                                if (prefs.code().isNotBlank()) return@repeatOnLifecycle
+                                val server = prefs.server()
+                                val installatie = prefs.installatie()
+                                val a = withContext(Dispatchers.IO) { Api.aanmelden(ctx, server, installatie) }
+                                if (a == null) {
+                                    geenVerbinding = true
+                                } else {
+                                    geenVerbinding = false
+                                    eigen = a
+                                    if (a.gekoppeld) {
+                                        // Eén keer, en helemaal. Het bewaren van de code herschikt dit
+                                        // scherm en breekt deze lus af — zonder NonCancellable zou de
+                                        // stap daarna (de map zoeken of de kiezer openen) halverwege
+                                        // kunnen wegvallen. En de kiezer zelf legt de app even stil;
+                                        // komt ze terug, dan staat de code al bewaard en begint er
+                                        // niets opnieuw.
+                                        withContext(NonCancellable) { if (prefs.code().isBlank()) gebruikCode(a.code) }
+                                        return@repeatOnLifecycle
+                                    }
+                                }
+                                delay(5_000)
+                            }
+                        }
+                    }
+
                     Scherm(
                         code = code,
                         gekoppeld = code.isNotBlank() && tree.isNotBlank(),
+                        eigenCode = eigen?.code,
+                        geenVerbinding = geenVerbinding,
                         onKoppel = { ingetikt, klaar ->
                             scope.launch {
                                 val server = prefs.server()
                                 val goed = withContext(Dispatchers.IO) { Api(server, ingetikt).verifyCode() }
-                                if (goed) {
-                                    prefs.setCode(ingetikt)
-                                    // De map erbij zoeken. Mag er al een — bij een herinstallatie
-                                    // blijft de toestemming soms staan — dan is de code werkelijk
-                                    // het enige geweest wat hij moest doen.
-                                    val alGegeven = Veldmap.alGegeven(ctx)
-                                    if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync(); Batterij.vraag(ctx) }
-                                    else kiesMap.launch(Veldmap.kiezer())
-                                }
+                                if (goed) gebruikCode(ingetikt)
                                 klaar(goed)
                             }
                         },
@@ -204,13 +264,20 @@ private fun Merk (bergHoogte: Int = 72, tekstMaat: Int = 26) {
 // app opent, wil één van twee dingen weten: welke code er in staat, of het werkt. Dat past op
 // hetzelfde scherm, en dan hoeft niemand te leren welk scherm waarvoor dient.
 //
-// Vóór het koppelen is het veld in te tikken. Daarna staat de code er gewoon, groot genoeg om
-// vanaf een meter af te lezen — want dat is waarvoor je hem later nog eens opzoekt.
+// Vóór het koppelen staat hier de eigen code van het toestel, in hetzelfde vak als later de
+// gekoppelde. Zo leest kantoor ze af — aan de telefoon of op een foto — en tikt ze in. Het veld
+// om met de hand in te tikken zat vroeger op deze plek; het staat er nog, maar klein onderaan,
+// want het is niet meer de gewone weg.
+//
+// Daarna staat de code er gewoon, groot genoeg om vanaf een meter af te lezen — want dat is
+// waarvoor je hem later nog eens opzoekt.
 
 @Composable
 private fun Scherm (
     code: String,
     gekoppeld: Boolean,
+    eigenCode: String?,
+    geenVerbinding: Boolean,
     onKoppel: (String, (Boolean) -> Unit) -> Unit,
     onKiesMap: () -> Unit,
     onBatterij: () -> Unit,
@@ -221,6 +288,8 @@ private fun Scherm (
     var getikt by remember { mutableStateOf("") }
     var bezig by remember { mutableStateOf(false) }
     var fout by remember { mutableStateOf(false) }
+    // Het veld om met de hand in te tikken, dicht tot iemand erom vraagt. Na ontkoppelen weer dicht.
+    var zelfIntikken by remember(code) { mutableStateOf(false) }
 
     // Elke seconde opnieuw kijken. Het bolletje hoort mee te bewegen met de werkelijkheid; een
     // groen bolletje dat groen blijft omdat niemand het bijwerkt, is erger dan geen bolletje.
@@ -251,66 +320,72 @@ private fun Scherm (
         Text("KOPPELCODE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = TekstZacht)
         Spacer(Modifier.height(10.dp))
 
-        if (code.isBlank()) {
-            OutlinedTextField(
-                value = getikt,
-                onValueChange = { nieuw ->
-                    // Alleen cijfers, en niet meer dan acht. Wie plakt, plakt soms een spatie of
-                    // een streepje mee; dat hoort de app zelf weg te halen in plaats van erover te
-                    // klagen.
-                    getikt = nieuw.filter { it.isDigit() }.take(8)
-                    fout = false
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                isError = fout,
-                placeholder = { Text("00000000", fontSize = 36.sp, color = TekstZacht, textAlign = TextAlign.Center) },
-                textStyle = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = 8.sp),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(18.dp))
-            Button(
-                onClick = { bezig = true; onKoppel(getikt) { goed -> bezig = false; fout = !goed } },
-                enabled = !bezig && getikt.length == 8,
-                modifier = Modifier.fillMaxWidth().height(62.dp),
-            ) {
-                if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
-                else Text("Koppelen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            }
-            if (fout) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Die code kennen we niet. Kijk hem na op mv3d.be, bij Machines.",
-                    fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
-                )
-            }
+        if (code.isNotBlank()) {
+            CodeVak(code)
         } else {
-            Box(Modifier.clip(RoundedCornerShape(18.dp)).background(Kaart).padding(horizontal = 30.dp, vertical = 18.dp)) {
-                Text(
-                    code.chunked(4).joinToString("  "),
-                    fontSize = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp, color = Accent,
+            // ── de eigen code ──
+            //
+            // Nog geen antwoord: een klein wieltje, geen leeg vak — een vak zonder cijfers leest als
+            // "hier hoort iets te staan en het is kapot". Geen internet: dat zeggen, in plaats van
+            // een code te tonen die de server nog nooit gezien heeft.
+            when {
+                eigenCode != null -> CodeVak(eigenCode)
+                geenVerbinding -> Text(
+                    "Geen verbinding — de code verschijnt zodra er internet is.",
+                    fontSize = 15.sp, textAlign = TextAlign.Center, color = TekstZacht,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+                else -> CircularProgressIndicator(Modifier.size(30.dp), strokeWidth = 2.5.dp, color = Accent)
             }
         }
 
         Spacer(Modifier.height(28.dp))
 
-        // ── eronder: gekoppeld of niet ──
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(14.dp).clip(CircleShape)
-                    .background(if (leeft) Accent else Color(0xFF5A6C82)),
-            )
-            Spacer(Modifier.width(10.dp))
+        if (code.isNotBlank()) {
+            // ── eronder: gekoppeld of niet ──
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(14.dp).clip(CircleShape)
+                        .background(if (leeft) Accent else Color(0xFF5A6C82)),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (leeft) "Gekoppeld" else if (wachtOpMap) "Nog een tik: wijs de map aan" else "Niet gekoppeld",
+                    fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    color = if (leeft) Tekst else TekstZacht,
+                )
+            }
+            SyncService.machineName?.takeIf { leeft }?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, fontSize = 15.sp, color = TekstZacht)
+            }
+        } else if (eigenCode != null) {
+            // ── eronder: we wachten op kantoor ──
+            //
+            // Een bolletje dat beweegt, want er gebeurt ook iets: om de vijf seconden vraagt de app
+            // of de code al ingetikt is. Een stilstaand grijs bolletje zei "niet gekoppeld", en dat
+            // klonk als een fout in plaats van als de stap waar we zitten.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WachtBolletje()
+                Spacer(Modifier.width(10.dp))
+                Text("Wacht op koppeling…", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Tekst)
+            }
+            Spacer(Modifier.height(10.dp))
             Text(
-                if (leeft) "Gekoppeld" else if (wachtOpMap) "Nog een tik: wijs de map aan" else "Niet gekoppeld",
-                fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                color = if (leeft) Tekst else TekstZacht,
+                "Tik deze code in op kantoor: MV3D Convertor → Toestel toevoegen.",
+                fontSize = 14.sp, textAlign = TextAlign.Center, color = TekstZacht,
+                modifier = Modifier.fillMaxWidth(),
             )
-        }
-        SyncService.machineName?.takeIf { leeft }?.let {
-            Spacer(Modifier.height(4.dp))
-            Text(it, fontSize = 15.sp, color = TekstZacht)
+            // De code blijft staan als het internet even wegvalt — ze verandert niet — maar wie
+            // wacht, hoort te weten waarom er niets gebeurt.
+            if (geenVerbinding) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Even geen verbinding met mv3d.be — we blijven het proberen.",
+                    fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         // Wat er hapert, in één zin.
@@ -402,6 +477,80 @@ private fun Scherm (
         if (code.isNotBlank()) {
             TextButton(onClick = onKiesMap) { Text("Andere map kiezen", fontSize = 13.sp, color = TekstZacht) }
             TextButton(onClick = onOntkoppel) { Text("Ontkoppelen", fontSize = 13.sp, color = TekstZacht) }
+        } else if (!zelfIntikken) {
+            // De oude weg, voor wie van kantoor al een code kreeg. Ze blijft bestaan: een machine
+            // die eerst in het portaal aangemaakt werd, heeft haar code al.
+            TextButton(onClick = { zelfIntikken = true }) {
+                Text("Code van kantoor gekregen? Tik hem hier in", fontSize = 13.sp, color = TekstZacht)
+            }
+        } else {
+            OutlinedTextField(
+                value = getikt,
+                onValueChange = { nieuw ->
+                    // Alleen cijfers, en niet meer dan acht. Wie plakt, plakt soms een spatie of
+                    // een streepje mee; dat hoort de app zelf weg te halen in plaats van erover te
+                    // klagen.
+                    getikt = nieuw.filter { it.isDigit() }.take(8)
+                    fout = false
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                isError = fout,
+                placeholder = { Text("00000000", fontSize = 36.sp, color = TekstZacht, textAlign = TextAlign.Center) },
+                textStyle = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = 8.sp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = { bezig = true; onKoppel(getikt) { goed -> bezig = false; fout = !goed } },
+                enabled = !bezig && getikt.length == 8,
+                modifier = Modifier.fillMaxWidth().height(62.dp),
+            ) {
+                if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
+                else Text("Koppelen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            }
+            if (fout) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Die code kennen we niet. Kijk hem na in de MV3D Convertor of op mv3d.be, bij Machines.",
+                    fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
     }
+}
+
+/**
+ * Een code van acht cijfers in twee groepjes van vier, in het groen.
+ *
+ * Hetzelfde vak vóór en na het koppelen. Wat kantoor van het scherm afleest, hoort er later
+ * precies zo uit te zien als wat er dan in het portaal staat.
+ */
+@Composable
+private fun CodeVak (code: String) {
+    Box(Modifier.clip(RoundedCornerShape(18.dp)).background(Kaart).padding(horizontal = 30.dp, vertical = 18.dp)) {
+        Text(
+            code.chunked(4).joinToString("  "),
+            fontSize = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp, color = Accent,
+        )
+    }
+}
+
+/** Het groene bolletje dat zachtjes aan- en uitgaat terwijl de app op kantoor wacht. */
+@Composable
+private fun WachtBolletje () {
+    val puls = rememberInfiniteTransition(label = "wacht")
+    val helder by puls.animateFloat(
+        initialValue = 0.35f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "helder",
+    )
+    val maat by puls.animateFloat(
+        initialValue = 0.8f, targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "maat",
+    )
+    Box(
+        Modifier.size(14.dp)
+            .graphicsLayer { alpha = helder; scaleX = maat; scaleY = maat }
+            .clip(CircleShape).background(Accent),
+    )
 }

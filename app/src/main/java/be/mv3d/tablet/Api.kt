@@ -19,6 +19,14 @@ data class RemoteFile(val id: String, val name: String, val url: String, val sub
  */
 data class PullFile(val id: String, val path: String, val url: String, val token: String)
 
+/**
+ * Eén bestand dat van de tablet af moet.
+ *
+ * Alleen een pad, en alleen een pad dat deze tablet zelf gemeld heeft: de server zeeft dat. Het
+ * wordt gevraagd vanuit de Convertor, waar de naam van de werf eerst overgetypt moet worden.
+ */
+data class RemoveFile(val id: String, val path: String)
+
 /** Wat er van één opdracht terechtkwam. */
 data class PullResult(val id: String, val ok: Boolean, val bytes: Long, val error: String?)
 
@@ -28,6 +36,7 @@ data class SyncResult(
     val guidance: String?,
     val name: String?,
     val pull: List<PullFile> = emptyList(),
+    val remove: List<RemoveFile> = emptyList(),
 )
 
 /**
@@ -58,6 +67,13 @@ class Api(private val server: String, private val code: String) {
         // antwoord moest van de machinist komen — die daarvoor uit zijn kraan moest klimmen.
         body.put("app", "tablet")
         body.put("app_version", "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+        // ── wat deze versie kan ──
+        //
+        // De builds die al in cabines hangen, kunnen niet wissen. Kreeg zo'n tablet toch een
+        // wisopdracht, dan bleef die een kwartier op "bezig" staan en gebeurde er niets — en in de
+        // Convertor stond "0/1" tot iemand het opgaf. Nu zegt de app het zelf, en deelt de server
+        // wissen alleen uit aan wie het meldt. Een oudere app krijgt meteen te horen waarom niet.
+        body.put("kan", org.json.JSONArray().put("wissen"))
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->
@@ -85,11 +101,21 @@ class Api(private val server: String, private val code: String) {
                     ))
                 }
             }
+            // En wat er van de tablet af moet.
+            val remove = ArrayList<RemoveFile>()
+            o.optJSONArray("remove")?.let {
+                for (i in 0 until it.length()) {
+                    val q = it.getJSONObject(i)
+                    val pad = q.optString("path")
+                    if (pad.isNotBlank()) remove.add(RemoveFile(q.optString("id"), pad))
+                }
+            }
             return SyncResult(
                 files,
                 o.optString("guidance_system").ifEmpty { null },
                 o.optString("name").ifEmpty { null },
                 pull,
+                remove,
             )
         }
     }
@@ -97,26 +123,33 @@ class Api(private val server: String, private val code: String) {
     /**
      * PATCH /api/machines/sync — pas als dit gelukt is, is een bestand van de wachtrij af.
      *
-     * De opgestuurde bestanden gaan in dezelfde beweging mee. Mislukt er één, dan hoort dat erbij
-     * te staan: een opdracht die blijft hangen op "bezig" ziet eruit als een tablet die niet
-     * antwoordt, terwijl het bestand gewoon weg was.
+     * De opgestuurde en gewiste bestanden gaan in dezelfde beweging mee. Mislukt er één, dan hoort
+     * dat erbij te staan: een opdracht die blijft hangen op "bezig" ziet eruit als een tablet die
+     * niet antwoordt, terwijl het bestand gewoon weg was.
      */
-    fun confirm(transferIds: List<String>, pulled: List<PullResult> = emptyList()) {
-        if (transferIds.isEmpty() && pulled.isEmpty()) return
+    fun confirm(
+        transferIds: List<String>,
+        pulled: List<PullResult> = emptyList(),
+        removed: List<PullResult> = emptyList(),
+    ) {
+        if (transferIds.isEmpty() && pulled.isEmpty() && removed.isEmpty()) return
         val body = JSONObject().put("connection_code", code)
         if (transferIds.isNotEmpty()) body.put("transfer_ids", org.json.JSONArray(transferIds))
-        if (pulled.isNotEmpty()) {
-            val arr = org.json.JSONArray()
-            for (p in pulled) {
-                val o = JSONObject().put("id", p.id).put("ok", p.ok)
-                if (p.ok) o.put("bytes", p.bytes) else o.put("error", p.error ?: "onbekend")
-                arr.put(o)
-            }
-            body.put("pulled", arr)
-        }
+        if (pulled.isNotEmpty()) body.put("pulled", uitslagen(pulled))
+        if (removed.isNotEmpty()) body.put("removed", uitslagen(removed))
         val req = Request.Builder().url("$server/api/machines/sync")
             .patch(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().close()
+    }
+
+    private fun uitslagen(lijst: List<PullResult>): org.json.JSONArray {
+        val arr = org.json.JSONArray()
+        for (p in lijst) {
+            val o = JSONObject().put("id", p.id).put("ok", p.ok)
+            if (p.ok) o.put("bytes", p.bytes) else o.put("error", p.error ?: "onbekend")
+            arr.put(o)
+        }
+        return arr
     }
 
     /**

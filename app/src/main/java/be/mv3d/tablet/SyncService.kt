@@ -262,18 +262,66 @@ class SyncService : Service() {
             }
         }
 
+        // ── en wat er van de tablet af moet ──
+        //
+        // Wissen stond hier ooit en is er bewust uitgehaald, samen met de rest van de opdrachten op
+        // afstand. Het komt terug om één reden: in de Convertor staat een knop "wissen" bij elke werf
+        // op een machine, en bij deze tablet deed die niets. De opdracht kwam aan en bleef hangen.
+        //
+        // Dezelfde grendels als op de veldcomputer:
+        //   · alleen paden die deze tablet zelf gemeld heeft — dat zeeft de server al
+        //   · alleen bestanden binnen de gekozen map; zoekBestand klimt nooit hoger en slaat ".." over
+        //   · een bestand dat er al niet meer is, telt als gelukt, anders blijft die opdracht eeuwig
+        //     in de rij staan omdat wij niet kunnen doen wat al gebeurd is
+        //
+        // Eén ding meer dan op de veldcomputer: blijft er van de werf een lege map over, dan gaat die
+        // ook weg. Unicontrol toont elke map als een project, en een leeg project dat blijft staan
+        // leest op de tablet als een werf die niet gewist is. Alleen mappen die wérkelijk leeg zijn,
+        // en nooit de gekozen map zelf.
+        val gewist = ArrayList<PullResult>()
+        val geraakt = LinkedHashSet<List<String>>()
+        for (q in res.remove.take(20)) {
+            try {
+                val delen = q.path.replace('\\', '/').split('/').filter { it.isNotBlank() && it != ".." }
+                val doc = zoekBestand(tree, q.path)
+                if (doc == null) { gewist.add(PullResult(q.id, true, 0L, null)); continue }
+                val lengte = doc.length()
+                if (!doc.delete()) throw RuntimeException("kon niet gewist worden")
+                gewist.add(PullResult(q.id, true, lengte, null))
+                if (delen.size > 1) geraakt.add(delen.dropLast(1))
+            } catch (e: Exception) {
+                gewist.add(PullResult(q.id, false, 0L, e.message ?: "onbekend"))
+            }
+        }
+        fun zoekMap(delen: List<String>): DocumentFile? {
+            var hier: DocumentFile = tree
+            for (deel in delen) hier = hier.findFile(deel)?.takeIf { it.isDirectory } ?: return null
+            return hier
+        }
+        for (m in geraakt.sortedByDescending { it.size }) {
+            var delen = m
+            while (delen.isNotEmpty()) {
+                val map = zoekMap(delen) ?: break
+                if (map.listFiles().isNotEmpty()) break
+                if (!map.delete()) break
+                delen = delen.dropLast(1)
+            }
+        }
+
         // Bevestigen wat gelukt is, ook als er iets misging. Anders blijft een werf die op één
         // bestand na binnen is, in zijn geheel in de wachtrij staan.
-        if (gedaan.isNotEmpty() || opgestuurd.isNotEmpty()) api.confirm(gedaan, opgestuurd)
+        if (gedaan.isNotEmpty() || opgestuurd.isNotEmpty() || gewist.isNotEmpty()) api.confirm(gedaan, opgestuurd, gewist)
 
         lastFout = if (mislukt.isEmpty()) null
             else if (mislukt.size == 1) "${mislukt[0]} kon niet weggeschreven worden."
             else "${mislukt.size} bestanden konden niet weggeschreven worden."
         val weg = opgestuurd.count { it.ok }
+        val af = gewist.count { it.ok }
         lastStatus = when {
             mislukt.isNotEmpty() -> lastStatus
             gedaan.isNotEmpty() -> "${gedaan.size} bestand(en) binnengehaald"
             weg > 0 -> "$weg bestand(en) opgestuurd"
+            af > 0 -> "$af bestand(en) gewist"
             uitgesteld > 0 -> "$uitgesteld wacht(en) op een nieuwe poging"
             else -> "bij"
         }

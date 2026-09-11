@@ -52,13 +52,16 @@ class SyncService : Service() {
     /** Wat we al uit een Project.yml gelezen hebben: werf → (datum van dat bestand, plek). */
     private val plekGeheugen = HashMap<String, Pair<Long, Plek?>>()
 
+    /** Of deze dienst sinds haar start al gekeken heeft naar een nieuwe versie (zie bijwerken). */
+    private var gekekenSindsStart = false
+
     companion object {
         const val CHANNEL = "mv3d_sync"
         /** Een tweede kanaal, want deze melding mág gezien worden. De sync-melding niet. */
         const val CHANNEL_UPDATE = "mv3d_update"
         const val INTERVAL_MS = 5_000L
-        /** Eén keer per dag kijken of er een nieuwe versie staat. Vaker heeft geen doel. */
-        const val UPDATE_MS = 24 * 60 * 60 * 1000L
+        /** Elk uur kijken of er een nieuwe versie staat, en bij elke start. Eén keer per dag was te traag. */
+        const val UPDATE_MS = 60 * 60 * 1000L
         @Volatile var running = false; private set
         /** Wat er als laatste gebeurde. Het scherm leest dit; het is het enige wat het toont. */
         @Volatile var lastStatus: String = "—"
@@ -144,8 +147,16 @@ class SyncService : Service() {
             prefs.wisKlaar(); updateKlaar = 0
         }
 
+        // ── bij de start altijd, daarna elk uur ──
+        //
+        // Hier stond één keer per dag, onthouden over een herstart heen. Gevolg op 11/9/2026: build
+        // 98 stond online, maar Picon had die ochtend al gekeken en bleef op 97 — ook na het
+        // herstarten van de app, want het tijdstip stond in de voorkeuren. Wie iets bijwerkt en het
+        // programma herstart, verwacht dat het dan kijkt. Eén blik per uur naar GitHub is niets.
         val nu = System.currentTimeMillis()
-        if (nu - prefs.gekeken() < UPDATE_MS) return
+        if (!gekekenSindsStart) {
+            gekekenSindsStart = true
+        } else if (nu - prefs.gekeken() < UPDATE_MS) return
         prefs.setGekeken(nu)
 
         val u = Updater.check() ?: return

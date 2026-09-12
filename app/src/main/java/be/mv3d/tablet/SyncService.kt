@@ -104,12 +104,43 @@ class SyncService : Service() {
         while (isActive) {
             try { tick() } catch (e: Exception) {
                 lastStatus = "fout: ${e.message}"
-                lastFout = getString(R.string.fout_geen_verbinding)
+                // Niet elke fout is "geen bereik".
+                //
+                // Hier stond onvoorwaardelijk fout_geen_verbinding. Maar tick() werpt ook bij een
+                // HTTP 401 of 404 (een ingetrokken code, een machine die gewist is), bij kapotte
+                // JSON, bij een volle schijf en bij een SecurityException op de map. De machinist
+                // las dan "Geen verbinding met mv3d.be" en ging de antenne zoeken terwijl zijn code
+                // ingetrokken was. Dat ondergraaft precies de scheiding die deze dienst maakt
+                // tussen "wij kunnen er niet bij" en "er is iets anders aan de hand".
+                lastFout = foutTekst(e)
             }
             // Los van de bestanden, en het mag mislukken zonder gevolg: bijwerken hoort nooit in
             // de weg te staan van het werk.
             try { bijwerken() } catch (_: Exception) { }
             delay(INTERVAL_MS)
+        }
+    }
+
+    /**
+     * Welke zin hoort er bij deze fout?
+     *
+     * Drie soorten, en ze sturen de machinist elk een andere kant op:
+     *
+     *   · het netwerk — dan klopt "geen verbinding" en heeft wachten zin;
+     *   · de server antwoordt wél maar met een foutcode (401, 404, 500) — dan is er iets met de
+     *     koppeling of met ons, en helpt wachten op bereik niets;
+     *   · al de rest — een volle schijf, een map waar we niet in mogen, kapotte JSON.
+     *
+     * De melding draagt in de laatste twee gevallen de eigenlijke reden mee. Die is niet altijd
+     * mooi, maar hij is waar, en hij is het enige waarmee jij aan de telefoon iets kunt.
+     */
+    private fun foutTekst(e: Exception): String {
+        val m = e.message ?: ""
+        return when {
+            e is java.io.IOException && !m.startsWith("sync ") -> getString(R.string.fout_geen_verbinding)
+            m.startsWith("sync ") -> getString(R.string.fout_server, m.take(60))
+            e is SecurityException -> getString(R.string.fout_map_geen_toegang)
+            else -> getString(R.string.fout_onbekend, m.take(80).ifEmpty { e.javaClass.simpleName })
         }
     }
 
@@ -362,13 +393,28 @@ class SyncService : Service() {
             api.confirm(gedaan, opgestuurd, gewist, hernoemd)
         }
 
-        lastFout = if (mislukt.isEmpty()) null
-            else if (mislukt.size == 1) getString(R.string.fout_een_niet_weggeschreven, mislukt[0])
-            else getString(R.string.fout_niet_weggeschreven, mislukt.size)
+        // De waarschuwing over de map mag hier niet uitgewist worden.
+        //
+        // Hier stond `lastFout = if (mislukt.isEmpty()) null else …`, en dat wist alles — ook de
+        // melding die hierboven gezet werd toen bleek dat de app niet meer in de werfmap mag. De
+        // wachtrij is normaal leeg, dus dat gebeurde meteen in dezelfde ronde. Samen met `lastOk`
+        // een paar regels hoger betekende dat: een tablet die na een bijwerking zijn maptoestemming
+        // kwijt is, toont een volmaakt gezond scherm. Groen bolletje, "Gekoppeld", geen fout.
+        //
+        // Dat is precies de storing die hierboven beschreven staat en die achtentwintig werven uit
+        // het portaal liet verdwijnen. Ze stond er nog.
+        lastFout = when {
+            !leesbaar -> getString(R.string.fout_map_geen_toegang)
+            mislukt.isEmpty() -> null
+            mislukt.size == 1 -> getString(R.string.fout_een_niet_weggeschreven, mislukt[0])
+            else -> getString(R.string.fout_niet_weggeschreven, mislukt.size)
+        }
         val weg = opgestuurd.count { it.ok }
         val af = gewist.count { it.ok }
         val anders = hernoemd.count { it.ok }
         lastStatus = when {
+            // Hetzelfde voor de statusregel: een gesloten map is geen "bij".
+            !leesbaar -> getString(R.string.st_map_niet_bereikbaar)
             mislukt.isNotEmpty() -> lastStatus
             gedaan.isNotEmpty() -> getString(R.string.st_binnengehaald, gedaan.size)
             weg > 0 -> getString(R.string.st_opgestuurd, weg)

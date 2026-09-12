@@ -68,4 +68,7 @@
     <string name="st_gewist">%1$d bestand(en) gewist</string>
     <string name="st_hernoemd">%1$d werf(en) hernoemd</string>
     <string name="st_uitgesteld">%1$d wacht(en) op een nieuwe poging</string>
+    <string name="fout_server">De server antwoordt, maar niet goed (%1$s). Probeer het straks opnieuw.</string>
+    <string name="fout_onbekend">Er ging iets mis: %1$s</string>
+    <string name="fout_code_geen_bereik">Geen verbinding met mv3d.be. De code kon niet nagekeken worden — probeer het opnieuw zodra er bereik is.</string>
 </resources>

@@ -44,4 +44,7 @@
     <string name="st_gewist">%1$d file(s) deleted</string>
     <string name="st_hernoemd">%1$d site(s) renamed</string>
     <string name="st_uitgesteld">%1$d waiting for another try</string>
+    <string name="fout_server">The server answers, but not correctly (%1$s). Try again later.</string>
+    <string name="fout_onbekend">Something went wrong: %1$s</string>
+    <string name="fout_code_geen_bereik">No connection to mv3d.be. The code could not be checked — try again once there is signal.</string>
 </resources>

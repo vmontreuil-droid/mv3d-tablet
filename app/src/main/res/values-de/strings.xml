@@ -44,4 +44,7 @@
     <string name="st_gewist">%1$d Datei(en) gelöscht</string>
     <string name="st_hernoemd">%1$d Baustelle(n) umbenannt</string>
     <string name="st_uitgesteld">%1$d warten auf einen neuen Versuch</string>
+    <string name="fout_server">Der Server antwortet, aber nicht richtig (%1$s). Versuchen Sie es später erneut.</string>
+    <string name="fout_onbekend">Etwas ist schiefgelaufen: %1$s</string>
+    <string name="fout_code_geen_bereik">Keine Verbindung zu mv3d.be. Der Code konnte nicht geprüft werden — versuchen Sie es erneut, sobald Empfang da ist.</string>
 </resources>

@@ -44,4 +44,7 @@
     <string name="st_gewist">%1$d archivo(s) borrado(s)</string>
     <string name="st_hernoemd">%1$d obra(s) renombrada(s)</string>
     <string name="st_uitgesteld">%1$d esperando un nuevo intento</string>
+    <string name="fout_server">El servidor responde, pero no correctamente (%1$s). Inténtelo más tarde.</string>
+    <string name="fout_onbekend">Algo ha salido mal: %1$s</string>
+    <string name="fout_code_geen_bereik">Sin conexión con mv3d.be. No se ha podido comprobar el código: inténtelo de nuevo cuando haya cobertura.</string>
 </resources>

@@ -189,9 +189,12 @@ class MainActivity : ComponentActivity() {
                         onKoppel = { ingetikt, klaar ->
                             scope.launch {
                                 val server = prefs.server()
-                                val goed = withContext(Dispatchers.IO) { Api(server, ingetikt).verifyCode() }
-                                if (goed) gebruikCode(ingetikt)
-                                klaar(goed)
+                                // Drie uitkomsten, geen twee. Zonder bereik is de code niet fout,
+                                // hij is niet na te kijken — en dan hoort het scherm dat te zeggen
+                                // in plaats van de machinist zijn juiste code te laten hertikken.
+                                val uitslag = withContext(Dispatchers.IO) { Api(server, ingetikt).codeNakijken() }
+                                if (uitslag == Api.CodeUitslag.GOED) gebruikCode(ingetikt)
+                                klaar(uitslag)
                             }
                         },
                         onKiesMap = { kiesMap.launch(Veldmap.kiezer()) },
@@ -279,7 +282,7 @@ private fun Scherm (
     gekoppeld: Boolean,
     eigenCode: String?,
     geenVerbinding: Boolean,
-    onKoppel: (String, (Boolean) -> Unit) -> Unit,
+    onKoppel: (String, (Api.CodeUitslag) -> Unit) -> Unit,
     onKiesMap: () -> Unit,
     onBatterij: () -> Unit,
     onBijwerken: () -> Unit,
@@ -288,7 +291,9 @@ private fun Scherm (
     val ctx = LocalContext.current
     var getikt by remember { mutableStateOf("") }
     var bezig by remember { mutableStateOf(false) }
-    var fout by remember { mutableStateOf(false) }
+    // De uitslag van de laatste koppelpoging: null (nog niets geprobeerd), GOED, FOUT of ONBEKEND.
+    // Het was een enkele vlag, en dan is "niet na te kijken" hetzelfde als "fout".
+    var uitslag by remember { mutableStateOf<Api.CodeUitslag?>(null) }
     // Het veld om met de hand in te tikken, dicht tot iemand erom vraagt. Na ontkoppelen weer dicht.
     var zelfIntikken by remember(code) { mutableStateOf(false) }
 
@@ -494,28 +499,31 @@ private fun Scherm (
                     // een streepje mee; dat hoort de app zelf weg te halen in plaats van erover te
                     // klagen.
                     getikt = nieuw.filter { it.isDigit() }.take(8)
-                    fout = false
+                    uitslag = null
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                isError = fout,
+                isError = uitslag == Api.CodeUitslag.FOUT,
                 placeholder = { Text("00000000", fontSize = 36.sp, color = TekstZacht, textAlign = TextAlign.Center) },
                 textStyle = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = 8.sp),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = { bezig = true; onKoppel(getikt) { goed -> bezig = false; fout = !goed } },
+                onClick = { bezig = true; onKoppel(getikt) { u -> bezig = false; uitslag = u } },
                 enabled = !bezig && getikt.length == 8,
                 modifier = Modifier.fillMaxWidth().height(62.dp),
             ) {
                 if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
                 else Text(stringResource(R.string.koppelen), fontSize = 19.sp, fontWeight = FontWeight.Bold)
             }
-            if (fout) {
+            if (uitslag != null && uitslag != Api.CodeUitslag.GOED) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    stringResource(R.string.code_onbekend),
+                    stringResource(
+                        if (uitslag == Api.CodeUitslag.FOUT) R.string.code_onbekend
+                        else R.string.fout_code_geen_bereik
+                    ),
                     fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
                 )
             }

@@ -314,13 +314,28 @@ class Api(private val server: String, private val code: String) {
     }
 
     /**
-     * Klopt deze code?
+     * De uitslag van het nakijken van een koppelcode.
      *
-     * Bij het koppelen willen we het meteen weten. Een tablet die "gekoppeld" zegt en daarna
+     * Bij het koppelen willen we het meteen weten: een tablet die "gekoppeld" zegt en daarna
      * dagenlang niets binnenhaalt omdat er een cijfer verkeerd stond, is erger dan een tablet die
      * meteen zegt dat de code niet klopt.
+     *
+     * Maar er waren twee uitkomsten waar er drie horen. Het scherm maakte van "niet goed" steevast
+     * "Die code kennen we niet. Kijk hem na in de MV3D Convertor." In een cabine zonder 4G tikte de
+     * machinist dus de júíste code in en kreeg te horen dat hij fout was — waarna hij hem opnieuw
+     * intikte, en opnieuw.
+     *
+     * GOED · FOUT (de server zegt nee) · ONBEKEND (we konden er niet bij).
      */
-    fun verifyCode(): Boolean = try { sync(null); true } catch (_: Exception) { false }
+    enum class CodeUitslag { GOED, FOUT, ONBEKEND }
+
+    fun codeNakijken(): CodeUitslag = try {
+        sync(null); CodeUitslag.GOED
+    } catch (e: Exception) {
+        // Een antwoord van de server met een foutcode betekent dat de code werkelijk niet deugt.
+        // Alles wat het netwerk zelf is — geen bereik, tijd verlopen, dns — zegt niets over de code.
+        if ((e.message ?: "").startsWith("sync ")) CodeUitslag.FOUT else CodeUitslag.ONBEKEND
+    }
 
     /**
      * Het bestand zelf, rechtstreeks de map in. De koppeling komt uit sync() en is een kwartier geldig.

@@ -45,6 +45,6 @@
     <string name="st_hernoemd">%1$d chantier(s) renommé(s)</string>
     <string name="st_uitgesteld">%1$d en attente d’un nouvel essai</string>
     <string name="fout_server">Le serveur répond, mais pas correctement (%1$s). Réessayez plus tard.</string>
-    <string name="fout_onbekend">Quelque chose s'est mal passé : %1$s</string>
-    <string name="fout_code_geen_bereik">Pas de connexion à mv3d.be. Le code n'a pas pu être vérifié — réessayez dès qu'il y a du réseau.</string>
+    <string name="fout_onbekend">Quelque chose s\'est mal passé : %1$s</string>
+    <string name="fout_code_geen_bereik">Pas de connexion à mv3d.be. Le code n\'a pas pu être vérifié — réessayez dès qu\'il y a du réseau.</string>
 </resources>

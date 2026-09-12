@@ -83,6 +83,27 @@ console.log('  ' + gevraagd.size + ' sleutels in de code · ' + sleutels.length 
 for (const k of onbekend) meld('    de code vraagt een sleutel die niet bestaat: ' + k)
 if (ongebruikt.length) console.log('  ' + ongebruikt.length + ' staan in values/ en worden nergens opgevraagd:\n      ' + ongebruikt.join(' '))
 
+// ── apostrofs ───────────────────────────────────────────────────────────────
+//
+// Een apostrof in een Android-tekst moet ontsnapt worden: \' en niet '. Doe je dat niet, dan
+// weigert aapt2 het hele bestand en valt de bouw om — met een melding die je pas ziet als CI
+// gedraaid heeft, en dat is tien minuten nadat je gepusht hebt.
+//
+// Dat is hier precies gebeurd: drie Franse zinnen met s'est, n'a en qu'il lieten de APK-bouw
+// falen. Op deze computer staat geen Java, dus er was niets dat het eerder kon zeggen. Nu wel.
+console.log('\n── apostrofs ' + '─'.repeat(52))
+let losseApostrof = 0
+for (const map of ['values', ...TALEN.map(x => 'values-' + x)]) {
+  const pad = path.join(RES, map, 'strings.xml')
+  if (!fs.existsSync(pad)) continue
+  const bron = fs.readFileSync(pad, 'utf8')
+  for (const m of bron.matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)) {
+    // Een apostrof die niet voorafgegaan wordt door een backslash.
+    if (/(^|[^\\])'/.test(m[2])) { meld('    ' + map + '/' + m[1] + ' — apostrof niet ontsnapt: gebruik \\\''); losseApostrof++ }
+  }
+}
+if (!losseApostrof) console.log('  elke apostrof is ontsnapt')
+
 console.log('')
 if (problemen) { console.log('  ' + problemen + ' ding(en) te doen.\n'); process.exit(1) }
 console.log('  Alle vier de talen zijn volledig, en de code vraagt niets wat er niet in staat.')

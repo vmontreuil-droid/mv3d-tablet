@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_input_desc">Lässt das Büro das Maschinen-Tablet aus der Ferne bedienen (Tippen und Wischen) über das MV3D-Portal. Einmalig einschalten; alles Weitere läuft von selbst.</string>
+
+    <string name="versie">Version %1$s · Build %2$d</string>
+    <string name="koppelcode">KOPPLUNGSCODE</string>
+    <string name="geen_verbinding_code">Keine Verbindung — der Code erscheint, sobald Internet da ist.</string>
+    <string name="gekoppeld">Gekoppelt</string>
+    <string name="wijs_map_aan">Noch ein Tipp: weisen Sie den Ordner zu</string>
+    <string name="niet_gekoppeld">Nicht gekoppelt</string>
+    <string name="wacht_op_koppeling">Warten auf die Kopplung…</string>
+    <string name="tik_code_in">Geben Sie diesen Code im Büro ein: MV3D Convertor → Gerät hinzufügen.</string>
+    <string name="even_geen_verbinding">Gerade keine Verbindung mit mv3d.be — wir versuchen es weiter.</string>
+
+    <string name="mag_stilleggen">Android darf diese App schlafen legen</string>
+    <string name="mag_stilleggen_uit">Dann kommt eine Baustelle nachts nicht herein. Ein Tipp und das ist gelöst.</string>
+    <string name="laten_doorlopen">Weiterlaufen lassen</string>
+
+    <string name="nieuwe_versie">Neue Version bereit</string>
+    <string name="bijwerken">Aktualisieren</string>
+    <string name="tik_om_bij_te_werken">Tippen, um MV3D zu aktualisieren.</string>
+    <string name="kanaal_bijwerken">MV3D-Aktualisierung</string>
+
+    <string name="map_aanwijzen">Ordner zuweisen</string>
+    <string name="kiezer_staat_al_goed">Die Auswahl steht schon auf dem erwarteten Ordner. Drücken Sie auf Diesen Ordner verwenden.</string>
+    <string name="andere_map_kiezen">Anderen Ordner wählen</string>
+    <string name="ontkoppelen">Entkoppeln</string>
+
+    <string name="code_gekregen">Einen Code vom Büro bekommen? Geben Sie ihn hier ein</string>
+    <string name="koppelen">Koppeln</string>
+    <string name="code_onbekend">Diesen Code kennen wir nicht. Prüfen Sie ihn im MV3D Convertor oder auf mv3d.be, unter Maschinen.</string>
+
+    <string name="mv3d_actief">MV3D aktiv</string>
+    <string name="st_niet_gekoppeld">nicht gekoppelt</string>
+    <string name="st_map_ongeldig">Ordner ungültig</string>
+    <string name="st_map_niet_bereikbaar">Ordner nicht erreichbar</string>
+    <string name="fout_geen_verbinding">Keine Verbindung mit mv3d.be.</string>
+    <string name="fout_map_niet_bereikbaar">Der Ordner ist nicht mehr erreichbar. Weisen Sie ihn erneut zu.</string>
+    <string name="fout_map_geen_toegang">Die App darf nicht mehr in den gewählten Ordner. Das passiert nach einer Aktualisierung: Tippen Sie auf \"Ordner zuweisen\" und wählen Sie ihn erneut.</string>
+    <string name="fout_een_niet_weggeschreven">%1$s konnte nicht geschrieben werden.</string>
+    <string name="fout_niet_weggeschreven">%1$d Dateien konnten nicht geschrieben werden.</string>
+    <string name="st_binnengehaald">%1$d Datei(en) geholt</string>
+    <string name="st_opgestuurd">%1$d Datei(en) gesendet</string>
+    <string name="st_gewist">%1$d Datei(en) gelöscht</string>
+    <string name="st_hernoemd">%1$d Baustelle(n) umbenannt</string>
+    <string name="st_uitgesteld">%1$d warten auf einen neuen Versuch</string>
+</resources>

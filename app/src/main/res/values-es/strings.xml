@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_input_desc">Permite que la oficina maneje a distancia la tableta de la máquina (tocar y deslizar) desde el portal MV3D. Se activa una sola vez; el resto funciona solo.</string>
+
+    <string name="versie">versión %1$s · build %2$d</string>
+    <string name="koppelcode">CÓDIGO DE VINCULACIÓN</string>
+    <string name="geen_verbinding_code">Sin conexión — el código aparece en cuanto haya internet.</string>
+    <string name="gekoppeld">Vinculada</string>
+    <string name="wijs_map_aan">Un toque más: indique la carpeta</string>
+    <string name="niet_gekoppeld">Sin vincular</string>
+    <string name="wacht_op_koppeling">Esperando la vinculación…</string>
+    <string name="tik_code_in">Teclee este código en la oficina: MV3D Convertor → Añadir un aparato.</string>
+    <string name="even_geen_verbinding">Ahora mismo sin conexión con mv3d.be — seguimos intentándolo.</string>
+
+    <string name="mag_stilleggen">Android puede dormir esta aplicación</string>
+    <string name="mag_stilleggen_uit">Entonces una obra no entraría por la noche. Un toque y queda resuelto.</string>
+    <string name="laten_doorlopen">Dejar que siga</string>
+
+    <string name="nieuwe_versie">Versión nueva lista</string>
+    <string name="bijwerken">Actualizar</string>
+    <string name="tik_om_bij_te_werken">Toque para actualizar MV3D.</string>
+    <string name="kanaal_bijwerken">Actualización de MV3D</string>
+
+    <string name="map_aanwijzen">Indicar la carpeta</string>
+    <string name="kiezer_staat_al_goed">El selector ya está en la carpeta que esperamos. Pulse Usar esta carpeta.</string>
+    <string name="andere_map_kiezen">Elegir otra carpeta</string>
+    <string name="ontkoppelen">Desvincular</string>
+
+    <string name="code_gekregen">¿Le han dado un código en la oficina? Tecléelo aquí</string>
+    <string name="koppelen">Vincular</string>
+    <string name="code_onbekend">No conocemos este código. Compruébelo en el MV3D Convertor o en mv3d.be, en Máquinas.</string>
+
+    <string name="mv3d_actief">MV3D activo</string>
+    <string name="st_niet_gekoppeld">sin vincular</string>
+    <string name="st_map_ongeldig">carpeta no válida</string>
+    <string name="st_map_niet_bereikbaar">carpeta no accesible</string>
+    <string name="fout_geen_verbinding">Sin conexión con mv3d.be.</string>
+    <string name="fout_map_niet_bereikbaar">La carpeta ya no está accesible. Indíquela de nuevo.</string>
+    <string name="fout_map_geen_toegang">La aplicación ya no tiene acceso a la carpeta elegida. Eso ocurre después de una actualización: toque \"Indicar la carpeta\" y elíjala de nuevo.</string>
+    <string name="fout_een_niet_weggeschreven">No se ha podido escribir %1$s.</string>
+    <string name="fout_niet_weggeschreven">No se han podido escribir %1$d archivos.</string>
+    <string name="st_binnengehaald">%1$d archivo(s) recibido(s)</string>
+    <string name="st_opgestuurd">%1$d archivo(s) enviado(s)</string>
+    <string name="st_gewist">%1$d archivo(s) borrado(s)</string>
+    <string name="st_hernoemd">%1$d obra(s) renombrada(s)</string>
+    <string name="st_uitgesteld">%1$d esperando un nuevo intento</string>
+</resources>

@@ -63,7 +63,15 @@ class SyncService : Service() {
         /** Elk uur kijken of er een nieuwe versie staat, en bij elke start. Eén keer per dag was te traag. */
         const val UPDATE_MS = 60 * 60 * 1000L
         @Volatile var running = false; private set
-        /** Wat er als laatste gebeurde. Het scherm leest dit; het is het enige wat het toont. */
+        /**
+         * Wat er als laatste gebeurde.
+         *
+         * Hier stond "het scherm leest dit; het is het enige wat het toont". Dat klopt niet meer:
+         * MainActivity leest alleen `lastFout`. Dit veld wordt geschreven en nergens gelezen —
+         * het gaat ook niet naar de server. Het staat er nog omdat het bij het opsporen van een
+         * storing het eerste is wat je wil weten, en omdat het scherm het zou kunnen tonen zodra
+         * daar plaats voor is. De teksten zijn alvast vertaald.
+         */
         @Volatile var lastStatus: String = "—"
         @Volatile var machineName: String? = null
         /** Wanneer er voor het laatst met de server gepraat is (millis), of 0. */
@@ -85,7 +93,7 @@ class SyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, notification("MV3D actief"))
+        startForeground(1, notification(getString(R.string.mv3d_actief)))
         if (!running) { running = true; loop() }
         // START_STICKY: valt de dienst om — te weinig geheugen, een update van Android — dan start
         // het toestel haar zelf opnieuw. Zonder dit stopt de sync stil en merkt niemand het.
@@ -96,7 +104,7 @@ class SyncService : Service() {
         while (isActive) {
             try { tick() } catch (e: Exception) {
                 lastStatus = "fout: ${e.message}"
-                lastFout = "Geen verbinding met mv3d.be."
+                lastFout = getString(R.string.fout_geen_verbinding)
             }
             // Los van de bestanden, en het mag mislukken zonder gevolg: bijwerken hoort nooit in
             // de weg te staan van het werk.
@@ -171,14 +179,14 @@ class SyncService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_UPDATE, "MV3D bijwerken", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_UPDATE, getString(R.string.kanaal_bijwerken), NotificationManager.IMPORTANCE_DEFAULT),
             )
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         val pi = PendingIntent.getActivity(this, 2, Updater.installatie(this, updateKlaar), flags)
         val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_UPDATE) else @Suppress("DEPRECATION") Notification.Builder(this)
-        nm.notify(2, b.setContentTitle("Nieuwe versie klaar")
-            .setContentText("Tik om MV3D bij te werken.")
+        nm.notify(2, b.setContentTitle(getString(R.string.nieuwe_versie))
+            .setContentText(getString(R.string.tik_om_bij_te_werken))
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentIntent(pi)
             .setAutoCancel(true)
@@ -187,10 +195,10 @@ class SyncService : Service() {
 
     private suspend fun tick() {
         val code = prefs.code(); val server = prefs.server(); val treeStr = prefs.tree()
-        if (code.isBlank() || treeStr.isBlank()) { lastStatus = "niet gekoppeld"; return }
+        if (code.isBlank() || treeStr.isBlank()) { lastStatus = getString(R.string.st_niet_gekoppeld); return }
         val api = Api(server, code)
         val tree = DocumentFile.fromTreeUri(this, Uri.parse(treeStr))
-            ?: run { lastStatus = "map ongeldig"; lastFout = "De map is niet meer bereikbaar. Wijs ze opnieuw aan."; return }
+            ?: run { lastStatus = getString(R.string.st_map_ongeldig); lastFout = getString(R.string.fout_map_niet_bereikbaar); return }
 
         // ── kan hij er werkelijk in kijken? ──
         //
@@ -208,9 +216,8 @@ class SyncService : Service() {
         // sturen géén lijst mee. Wat de server weet blijft dan staan tot de map weer open is.
         val leesbaar = tree.name != null && tree.canRead()
         if (!leesbaar) {
-            lastStatus = "map niet bereikbaar"
-            lastFout = "De app mag niet meer in de gekozen map. Dat gebeurt na het bijwerken: " +
-                "tik op \"Map aanwijzen\" en kies ze opnieuw."
+            lastStatus = getString(R.string.st_map_niet_bereikbaar)
+            lastFout = getString(R.string.fout_map_geen_toegang)
         }
 
         val res = api.sync(if (leesbaar) mappenlijst(tree) else null)
@@ -356,18 +363,18 @@ class SyncService : Service() {
         }
 
         lastFout = if (mislukt.isEmpty()) null
-            else if (mislukt.size == 1) "${mislukt[0]} kon niet weggeschreven worden."
-            else "${mislukt.size} bestanden konden niet weggeschreven worden."
+            else if (mislukt.size == 1) getString(R.string.fout_een_niet_weggeschreven, mislukt[0])
+            else getString(R.string.fout_niet_weggeschreven, mislukt.size)
         val weg = opgestuurd.count { it.ok }
         val af = gewist.count { it.ok }
         val anders = hernoemd.count { it.ok }
         lastStatus = when {
             mislukt.isNotEmpty() -> lastStatus
-            gedaan.isNotEmpty() -> "${gedaan.size} bestand(en) binnengehaald"
-            weg > 0 -> "$weg bestand(en) opgestuurd"
-            af > 0 -> "$af bestand(en) gewist"
-            anders > 0 -> "$anders werf(en) hernoemd"
-            uitgesteld > 0 -> "$uitgesteld wacht(en) op een nieuwe poging"
+            gedaan.isNotEmpty() -> getString(R.string.st_binnengehaald, gedaan.size)
+            weg > 0 -> getString(R.string.st_opgestuurd, weg)
+            af > 0 -> getString(R.string.st_gewist, af)
+            anders > 0 -> getString(R.string.st_hernoemd, anders)
+            uitgesteld > 0 -> getString(R.string.st_uitgesteld, uitgesteld)
             else -> "bij"
         }
     }

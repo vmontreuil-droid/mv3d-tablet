@@ -1,5 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  ── De teksten van de app ──────────────────────────────────────────────────
+
+  Alles wat een machinist leest, staat hier. Tot nu stond het in de Kotlin-bestanden zelf, in het
+  Nederlands, en dat gaat zolang de kraan in Vlaanderen staat. De convertor wordt verkocht in
+  België, Frankrijk, Nederland, Luxemburg, Duitsland en Spanje — en een Waalse machinist die
+  "Nog een tik: wijs de map aan" niet leest, wijst geen map aan. Dan komt zijn werf niet binnen en
+  belt hij, of erger: hij laat het staan en denkt dat het werkt.
+
+  De vertalingen staan in values-fr, values-en, values-de en values-es. Android kiest zelf op de
+  taal van het toestel; vanaf Android 13 kan de gebruiker er per app een andere kiezen. Er is dus
+  géén taalkiezer in de app: die zou naast de keuze van Android staan en de twee zouden elkaar
+  tegenspreken.
+
+  Ontbreekt er een vertaling, dan valt Android per sleutel terug op dit bestand. Een half vertaalde
+  taal blijft daardoor bruikbaar in plaats van in één klap helemaal Nederlands te worden.
+-->
 <resources>
     <string name="app_name">MV3D</string>
     <string name="remote_input_desc">Laat de baas de kraantablet op afstand bedienen (tikken en vegen) vanaf het MV3D-portaal. Eenmalig aanzetten; verder werkt alles automatisch.</string>
+
+    <!-- ── het scherm ── -->
+    <string name="versie">versie %1$s · build %2$d</string>
+    <string name="koppelcode">KOPPELCODE</string>
+    <string name="geen_verbinding_code">Geen verbinding — de code verschijnt zodra er internet is.</string>
+    <string name="gekoppeld">Gekoppeld</string>
+    <string name="wijs_map_aan">Nog een tik: wijs de map aan</string>
+    <string name="niet_gekoppeld">Niet gekoppeld</string>
+    <string name="wacht_op_koppeling">Wacht op koppeling…</string>
+    <string name="tik_code_in">Tik deze code in op kantoor: MV3D Convertor → Toestel toevoegen.</string>
+    <string name="even_geen_verbinding">Even geen verbinding met mv3d.be — we blijven het proberen.</string>
+
+    <!-- ── de batterijbesparing ── -->
+    <string name="mag_stilleggen">Android mag deze app stilleggen</string>
+    <string name="mag_stilleggen_uit">Dan komt een werf \'s nachts niet binnen. Eén tik en dat is opgelost.</string>
+    <string name="laten_doorlopen">Laten doorlopen</string>
+
+    <!-- ── bijwerken ── -->
+    <string name="nieuwe_versie">Nieuwe versie klaar</string>
+    <string name="bijwerken">Bijwerken</string>
+    <string name="tik_om_bij_te_werken">Tik om MV3D bij te werken.</string>
+    <string name="kanaal_bijwerken">MV3D bijwerken</string>
+
+    <!-- ── de map ── -->
+    <string name="map_aanwijzen">Map aanwijzen</string>
+    <string name="kiezer_staat_al_goed">De kiezer staat al op de map die we verwachten. Duw op Deze map gebruiken.</string>
+    <string name="andere_map_kiezen">Andere map kiezen</string>
+    <string name="ontkoppelen">Ontkoppelen</string>
+
+    <!-- ── zelf een code intikken ── -->
+    <string name="code_gekregen">Code van kantoor gekregen? Tik hem hier in</string>
+    <string name="koppelen">Koppelen</string>
+    <string name="code_onbekend">Die code kennen we niet. Kijk hem na in de MV3D Convertor of op mv3d.be, bij Machines.</string>
+
+    <!-- ── de dienst die op de achtergrond loopt ── -->
+    <string name="mv3d_actief">MV3D actief</string>
+    <string name="st_niet_gekoppeld">niet gekoppeld</string>
+    <string name="st_map_ongeldig">map ongeldig</string>
+    <string name="st_map_niet_bereikbaar">map niet bereikbaar</string>
+    <string name="fout_geen_verbinding">Geen verbinding met mv3d.be.</string>
+    <string name="fout_map_niet_bereikbaar">De map is niet meer bereikbaar. Wijs ze opnieuw aan.</string>
+    <string name="fout_map_geen_toegang">De app mag niet meer in de gekozen map. Dat gebeurt na het bijwerken: tik op \"Map aanwijzen\" en kies ze opnieuw.</string>
+    <string name="fout_een_niet_weggeschreven">%1$s kon niet weggeschreven worden.</string>
+    <string name="fout_niet_weggeschreven">%1$d bestanden konden niet weggeschreven worden.</string>
+    <string name="st_binnengehaald">%1$d bestand(en) binnengehaald</string>
+    <string name="st_opgestuurd">%1$d bestand(en) opgestuurd</string>
+    <string name="st_gewist">%1$d bestand(en) gewist</string>
+    <string name="st_hernoemd">%1$d werf(en) hernoemd</string>
+    <string name="st_uitgesteld">%1$d wacht(en) op een nieuwe poging</string>
 </resources>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_input_desc">Permet au bureau de piloter à distance la tablette de la machine (toucher et glisser) depuis le portail MV3D. À activer une seule fois ; tout le reste se fait automatiquement.</string>
+
+    <string name="versie">version %1$s · build %2$d</string>
+    <string name="koppelcode">CODE D’ASSOCIATION</string>
+    <string name="geen_verbinding_code">Pas de connexion — le code apparaît dès qu’il y a internet.</string>
+    <string name="gekoppeld">Associé</string>
+    <string name="wijs_map_aan">Encore un geste : désignez le dossier</string>
+    <string name="niet_gekoppeld">Pas associé</string>
+    <string name="wacht_op_koppeling">En attente de l’association…</string>
+    <string name="tik_code_in">Tapez ce code au bureau : MV3D Convertor → Ajouter un appareil.</string>
+    <string name="even_geen_verbinding">Pas de connexion avec mv3d.be pour le moment — nous continuons d’essayer.</string>
+
+    <string name="mag_stilleggen">Android peut mettre cette app en veille</string>
+    <string name="mag_stilleggen_uit">Un chantier n’arriverait alors pas pendant la nuit. Un geste et c’est réglé.</string>
+    <string name="laten_doorlopen">La laisser tourner</string>
+
+    <string name="nieuwe_versie">Nouvelle version prête</string>
+    <string name="bijwerken">Mettre à jour</string>
+    <string name="tik_om_bij_te_werken">Touchez pour mettre MV3D à jour.</string>
+    <string name="kanaal_bijwerken">Mise à jour MV3D</string>
+
+    <string name="map_aanwijzen">Désigner le dossier</string>
+    <string name="kiezer_staat_al_goed">Le sélecteur est déjà sur le dossier attendu. Appuyez sur Utiliser ce dossier.</string>
+    <string name="andere_map_kiezen">Choisir un autre dossier</string>
+    <string name="ontkoppelen">Dissocier</string>
+
+    <string name="code_gekregen">Vous avez reçu un code du bureau ? Tapez-le ici</string>
+    <string name="koppelen">Associer</string>
+    <string name="code_onbekend">Nous ne connaissons pas ce code. Vérifiez-le dans le MV3D Convertor ou sur mv3d.be, sous Machines.</string>
+
+    <string name="mv3d_actief">MV3D actif</string>
+    <string name="st_niet_gekoppeld">pas associé</string>
+    <string name="st_map_ongeldig">dossier invalide</string>
+    <string name="st_map_niet_bereikbaar">dossier inaccessible</string>
+    <string name="fout_geen_verbinding">Pas de connexion avec mv3d.be.</string>
+    <string name="fout_map_niet_bereikbaar">Le dossier n’est plus accessible. Désignez-le à nouveau.</string>
+    <string name="fout_map_geen_toegang">L’app n’a plus accès au dossier choisi. Cela arrive après une mise à jour : touchez \"Désigner le dossier\" et choisissez-le à nouveau.</string>
+    <string name="fout_een_niet_weggeschreven">%1$s n’a pas pu être écrit.</string>
+    <string name="fout_niet_weggeschreven">%1$d fichiers n’ont pas pu être écrits.</string>
+    <string name="st_binnengehaald">%1$d fichier(s) reçu(s)</string>
+    <string name="st_opgestuurd">%1$d fichier(s) envoyé(s)</string>
+    <string name="st_gewist">%1$d fichier(s) supprimé(s)</string>
+    <string name="st_hernoemd">%1$d chantier(s) renommé(s)</string>
+    <string name="st_uitgesteld">%1$d en attente d’un nouvel essai</string>
+</resources>

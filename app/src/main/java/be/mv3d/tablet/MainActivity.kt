@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -250,7 +251,7 @@ private fun Merk (bergHoogte: Int = 72, tekstMaat: Int = 26) {
         // van een zij-geladen app niets. Wie belt met "hij doet raar", weet nu ten minste met welke
         // versie hij belt. Het buildnummer erbij, want dáár praten we over.
         Text(
-            "versie ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",
+            stringResource(R.string.versie, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
             fontSize = 11.sp, color = TekstZacht, letterSpacing = 0.5.sp,
         )
     }
@@ -317,7 +318,7 @@ private fun Scherm (
         Merk(bergHoogte = 72, tekstMaat = 26)
         Spacer(Modifier.height(40.dp))
 
-        Text("KOPPELCODE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = TekstZacht)
+        Text(stringResource(R.string.koppelcode), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = TekstZacht)
         Spacer(Modifier.height(10.dp))
 
         if (code.isNotBlank()) {
@@ -331,7 +332,7 @@ private fun Scherm (
             when {
                 eigenCode != null -> CodeVak(eigenCode)
                 geenVerbinding -> Text(
-                    "Geen verbinding — de code verschijnt zodra er internet is.",
+                    stringResource(R.string.geen_verbinding_code),
                     fontSize = 15.sp, textAlign = TextAlign.Center, color = TekstZacht,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -350,7 +351,9 @@ private fun Scherm (
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    if (leeft) "Gekoppeld" else if (wachtOpMap) "Nog een tik: wijs de map aan" else "Niet gekoppeld",
+                    if (leeft) stringResource(R.string.gekoppeld)
+                    else if (wachtOpMap) stringResource(R.string.wijs_map_aan)
+                    else stringResource(R.string.niet_gekoppeld),
                     fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     color = if (leeft) Tekst else TekstZacht,
                 )
@@ -368,11 +371,11 @@ private fun Scherm (
             Row(verticalAlignment = Alignment.CenterVertically) {
                 WachtBolletje()
                 Spacer(Modifier.width(10.dp))
-                Text("Wacht op koppeling…", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Tekst)
+                Text(stringResource(R.string.wacht_op_koppeling), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Tekst)
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "Tik deze code in op kantoor: MV3D Convertor → Toestel toevoegen.",
+                stringResource(R.string.tik_code_in),
                 fontSize = 14.sp, textAlign = TextAlign.Center, color = TekstZacht,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -381,7 +384,7 @@ private fun Scherm (
             if (geenVerbinding) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Even geen verbinding met mv3d.be — we blijven het proberen.",
+                    stringResource(R.string.even_geen_verbinding),
                     fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -420,17 +423,17 @@ private fun Scherm (
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "Android mag deze app stilleggen",
+                    stringResource(R.string.mag_stilleggen),
                     fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Dan komt een werf 's nachts niet binnen. Eén tik en dat is opgelost.",
+                    stringResource(R.string.mag_stilleggen_uit),
                     fontSize = 13.5.sp, color = TekstZacht, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(14.dp))
                 Button(onClick = onBatterij, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("Laten doorlopen", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.laten_doorlopen), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -446,14 +449,14 @@ private fun Scherm (
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kaart).padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Nieuwe versie klaar", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst)
+                Text(stringResource(R.string.nieuwe_versie), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst)
                 SyncService.updateNaam.takeIf { it.isNotBlank() }?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(it, fontSize = 13.sp, color = TekstZacht)
                 }
                 Spacer(Modifier.height(14.dp))
                 Button(onClick = onBijwerken, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("Bijwerken", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.bijwerken), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -461,11 +464,11 @@ private fun Scherm (
         if (wachtOpMap) {
             Spacer(Modifier.height(18.dp))
             Button(onClick = onKiesMap, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Text("Map aanwijzen", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.map_aanwijzen), fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "De kiezer staat al op de map die we verwachten. Duw op Deze map gebruiken.",
+                stringResource(R.string.kiezer_staat_al_goed),
                 fontSize = 13.sp, textAlign = TextAlign.Center, color = TekstZacht,
             )
         }
@@ -475,13 +478,13 @@ private fun Scherm (
         // Klein en onderaan. Ze horen er te zijn — een tablet verhuist, een map verandert — maar
         // ze zijn niet waarvoor je dit scherm opent.
         if (code.isNotBlank()) {
-            TextButton(onClick = onKiesMap) { Text("Andere map kiezen", fontSize = 13.sp, color = TekstZacht) }
-            TextButton(onClick = onOntkoppel) { Text("Ontkoppelen", fontSize = 13.sp, color = TekstZacht) }
+            TextButton(onClick = onKiesMap) { Text(stringResource(R.string.andere_map_kiezen), fontSize = 13.sp, color = TekstZacht) }
+            TextButton(onClick = onOntkoppel) { Text(stringResource(R.string.ontkoppelen), fontSize = 13.sp, color = TekstZacht) }
         } else if (!zelfIntikken) {
             // De oude weg, voor wie van kantoor al een code kreeg. Ze blijft bestaan: een machine
             // die eerst in het portaal aangemaakt werd, heeft haar code al.
             TextButton(onClick = { zelfIntikken = true }) {
-                Text("Code van kantoor gekregen? Tik hem hier in", fontSize = 13.sp, color = TekstZacht)
+                Text(stringResource(R.string.code_gekregen), fontSize = 13.sp, color = TekstZacht)
             }
         } else {
             OutlinedTextField(
@@ -507,12 +510,12 @@ private fun Scherm (
                 modifier = Modifier.fillMaxWidth().height(62.dp),
             ) {
                 if (bezig) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = OpAccent)
-                else Text("Koppelen", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                else Text(stringResource(R.string.koppelen), fontSize = 19.sp, fontWeight = FontWeight.Bold)
             }
             if (fout) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Die code kennen we niet. Kijk hem na in de MV3D Convertor of op mv3d.be, bij Machines.",
+                    stringResource(R.string.code_onbekend),
                     fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
                 )
             }

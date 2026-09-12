@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_input_desc">Lets the office operate the machine tablet remotely (tap and swipe) from the MV3D portal. Turn on once; everything else happens by itself.</string>
+
+    <string name="versie">version %1$s · build %2$d</string>
+    <string name="koppelcode">PAIRING CODE</string>
+    <string name="geen_verbinding_code">No connection — the code appears as soon as there is internet.</string>
+    <string name="gekoppeld">Paired</string>
+    <string name="wijs_map_aan">One more tap: point out the folder</string>
+    <string name="niet_gekoppeld">Not paired</string>
+    <string name="wacht_op_koppeling">Waiting to be paired…</string>
+    <string name="tik_code_in">Type this code at the office: MV3D Convertor → Add a device.</string>
+    <string name="even_geen_verbinding">No connection with mv3d.be right now — we keep trying.</string>
+
+    <string name="mag_stilleggen">Android may put this app to sleep</string>
+    <string name="mag_stilleggen_uit">A site would then not come in overnight. One tap and that is solved.</string>
+    <string name="laten_doorlopen">Let it keep running</string>
+
+    <string name="nieuwe_versie">New version ready</string>
+    <string name="bijwerken">Update</string>
+    <string name="tik_om_bij_te_werken">Tap to update MV3D.</string>
+    <string name="kanaal_bijwerken">MV3D update</string>
+
+    <string name="map_aanwijzen">Point out the folder</string>
+    <string name="kiezer_staat_al_goed">The picker is already on the folder we expect. Press Use this folder.</string>
+    <string name="andere_map_kiezen">Choose another folder</string>
+    <string name="ontkoppelen">Unpair</string>
+
+    <string name="code_gekregen">Got a code from the office? Type it in here</string>
+    <string name="koppelen">Pair</string>
+    <string name="code_onbekend">We do not know this code. Check it in the MV3D Convertor or on mv3d.be, under Machines.</string>
+
+    <string name="mv3d_actief">MV3D running</string>
+    <string name="st_niet_gekoppeld">not paired</string>
+    <string name="st_map_ongeldig">folder invalid</string>
+    <string name="st_map_niet_bereikbaar">folder not reachable</string>
+    <string name="fout_geen_verbinding">No connection with mv3d.be.</string>
+    <string name="fout_map_niet_bereikbaar">The folder is no longer reachable. Point it out again.</string>
+    <string name="fout_map_geen_toegang">The app is no longer allowed into the chosen folder. That happens after an update: tap \"Point out the folder\" and choose it again.</string>
+    <string name="fout_een_niet_weggeschreven">%1$s could not be written.</string>
+    <string name="fout_niet_weggeschreven">%1$d files could not be written.</string>
+    <string name="st_binnengehaald">%1$d file(s) fetched</string>
+    <string name="st_opgestuurd">%1$d file(s) sent</string>
+    <string name="st_gewist">%1$d file(s) deleted</string>
+    <string name="st_hernoemd">%1$d site(s) renamed</string>
+    <string name="st_uitgesteld">%1$d waiting for another try</string>
+</resources>

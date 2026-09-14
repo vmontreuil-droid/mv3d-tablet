@@ -48,6 +48,16 @@ object Veldmap {
         "Trimble Data",
         "Documents/Trimble Data",
         "Android/data/com.trimble.access/files/Trimble Data",
+        // CHCNav. Wél nagemeten, op een uitlezing van een echte TX73-besturing: de werven staan in
+        // CHCNAV/TX73/Projects, met naast Projects nog crd, Geoid en PlaneGrid voor het stelsel.
+        // Hetzelfde pad staat letterlijk in hun eigen app (com.huace.mcnav) als "/CHCNAV/TX73/".
+        //
+        // De modelnaam staat in het pad, en er zijn er meer dan één. Daarom staat de map erboven er
+        // ook bij: op een toestel dat geen TX73 is, opent de kiezer dan in CHCNAV en duwt de
+        // machinist één keer extra in plaats van te moeten zoeken.
+        "CHCNAV/TX73/Projects",
+        "CHCNAV/TX73",
+        "CHCNAV",
     )
 
     private const val OPSLAG = "com.android.externalstorage.documents"

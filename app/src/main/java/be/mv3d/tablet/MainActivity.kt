@@ -200,9 +200,23 @@ class MainActivity : ComponentActivity() {
                         onKiesMap = { kiesMap.launch(Veldmap.kiezer(Api.besturing(ctx))) },
                         onBatterij = { Batterij.vraag(ctx) },
                         onBijwerken = { Updater.installeer(ctx, SyncService.updateKlaar) },
-                        onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },
+                        // Ontkoppelen stopt het ophalen van werven, maar niet het bijwerken: de
+                        // dienst gaat meteen weer aan en doet dan alleen dat. Een losgekoppelde
+                        // tablet die maanden op een oude versie blijft staan, is precies wat we
+                        // hierboven net dichtgezet hebben.
+                        onOntkoppel = { scope.launch { prefs.wis(); stopSync(); startSync() } },
                     )
-                    LaunchedEffect(code, tree) { if (code.isNotBlank() && tree.isNotBlank()) startSync() }
+                    // ── de dienst draait ook zonder koppeling ──
+                    //
+                    // Hier stond: alleen starten als er een code én een map is. Dat leek netjes —
+                    // zonder die twee valt er niets te synchroniseren — maar het bijwerken hangt aan
+                    // dezelfde dienst. Een tablet die in een cabine ligt te wachten tot kantoor hem
+                    // claimt, werkte zichzelf dus nooit bij, en stond na een maand nog op de versie
+                    // waarmee hij uit de doos kwam.
+                    //
+                    // De dienst weet zelf wat hij kan doen: zonder koppeling slaat hij het ophalen
+                    // van werven over en kijkt hij alleen of er een nieuwe versie is.
+                    LaunchedEffect(Unit) { startSync() }
                 }
             }
         }

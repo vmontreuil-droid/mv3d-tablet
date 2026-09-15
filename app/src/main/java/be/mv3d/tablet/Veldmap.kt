@@ -113,6 +113,7 @@ object Veldmap {
         val naam = (doc?.name ?: "").lowercase()
         val kinderen = doc?.listFiles()?.mapNotNull { if (it.isDirectory) it.name?.lowercase() else null } ?: emptyList()
         naam.contains("project") || naam.contains("unicontrol") || naam.contains("trimble") ||
+            naam.contains("chcnav") ||
             kinderen.any { it == "cloudprojects" || it == "projects" }
     } catch (_: Exception) { false }
 }

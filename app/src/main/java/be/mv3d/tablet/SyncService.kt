@@ -38,6 +38,9 @@ import org.json.JSONObject
  * van deze app een gereedschap dat van alles kón en waarvan de helft nooit gebruikt werd, terwijl
  * elk stuk ervan kon stukgaan op een werf waar niemand kan meekijken.
  */
+/** Het werkblad dat elke McNav-werf nodig heeft. Zie werkbladBij. */
+private const val WERKBLAD = "workspace.mgdb"
+
 class SyncService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val prefs by lazy { Prefs(this) }
@@ -290,6 +293,20 @@ class SyncService : Service() {
             }
         }
 
+        // ── het werkblad dat CHCnav niet zelf meestuurt ──
+        //
+        // Een McNav-werf draagt een workspace.mgdb: zijn entiteitendatabank, een DWG. Zonder dat
+        // bestand opent de werf wél en crasht het programma bij het opbouwen van het
+        // machinescherm:
+        //
+        //     NullPointerException: getObjectId(...) must not be null
+        //         at GuideLineManager.addSectionPlane
+        //
+        // Wij schrijven geen DWG, dus de server stuurt het niet mee. Het staat wél op elk
+        // CHC-toestel, in het lege fabrieksproject Default2DProject — dus halen we het daar op.
+        // Zo hoeft er niets van CHCNav verspreid te worden en werkt het op elk model.
+        if (gedaan.isNotEmpty()) werkbladBij(tree, res.guidance, res.files)
+
         // ── en wat er van hier wég moet ──
         //
         // Het portaal kan vragen om een bestand terug te sturen: een aangepast ontwerp, een
@@ -432,6 +449,48 @@ class SyncService : Service() {
      * deze vraag kan er een dag zitten. Vindt hij het niet, dan zeggen we dat, en dan staat er in
      * het portaal "staat er niet meer" in plaats van een opdracht die eeuwig op "bezig" blijft.
      */
+    /**
+     * Het werkblad van CHCnav bijzetten in elke werf die net binnengekomen is.
+     *
+     * Alleen voor CHCnav, en alleen als het er nog niet staat. Het bronbestand zoeken we op twee
+     * plekken, omdat het ervan afhangt welke map de machinist aangewezen heeft: staat hij in
+     * Projects, dan is Default2DProject een zus van de werf; staat hij een laag hoger, dan zit er
+     * nog Projects/ tussen.
+     *
+     * Vinden we het niet, dan zeggen we dat. Stil overslaan zou betekenen dat de werf netjes
+     * aankomt en het programma crasht zodra de machinist hem opent — en dan zoekt hij bij ons de
+     * fout niet, want er stond niets.
+     */
+    private fun werkbladBij(tree: DocumentFile, besturing: String?, files: List<RemoteFile>) {
+        if (!"CHCNAV".equals(besturing, ignoreCase = true)) return
+
+        // De werfmappen die in deze ronde iets gekregen hebben: het eerste deel van elke submap.
+        val werven = files.mapNotNull { f ->
+            f.subfolder?.replace('\\', '/')?.split('/')?.firstOrNull { it.isNotBlank() && it != ".." }
+        }.toSet()
+        if (werven.isEmpty()) return
+
+        val bron = zoekBestand(tree, "Default2DProject/$WERKBLAD")
+            ?: zoekBestand(tree, "Projects/Default2DProject/$WERKBLAD")
+        if (bron == null) {
+            lastStatus = "$WERKBLAD niet gevonden in Default2DProject — McNav kan deze werf niet openen"
+            return
+        }
+
+        for (werf in werven) {
+            // Staat het er al, dan blijft het staan: dit is een bestand van het toestel zelf.
+            if (zoekBestand(tree, "$werf/$WERKBLAD") != null) continue
+            try {
+                schrijf(tree, werf, WERKBLAD) { uit ->
+                    contentResolver.openInputStream(bron.uri)?.use { it.copyTo(uit, 64 * 1024) }
+                        ?: throw RuntimeException("kon $WERKBLAD niet lezen")
+                }
+            } catch (e: Exception) {
+                lastStatus = "$WERKBLAD naar $werf: ${e.message}"
+            }
+        }
+    }
+
     private fun zoekBestand(tree: DocumentFile, pad: String): DocumentFile? {
         val delen = pad.replace('\\', '/').split('/').filter { it.isNotBlank() && it != ".." }
         if (delen.isEmpty()) return null

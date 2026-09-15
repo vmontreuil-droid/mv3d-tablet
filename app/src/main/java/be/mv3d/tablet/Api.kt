@@ -160,6 +160,10 @@ class Api(private val server: String, private val code: String) {
                 if (namen.any { it.contains("trimble") && it.contains("access") }) lijst.add("TRIMBLE_ACCESS")
                 if (namen.any { it.contains("siteworks") }) lijst.add("TRIMBLE_SITEWORKS")
                 if (namen.any { it.contains("scs900") }) lijst.add("TRIMBLE_SCS900")
+                // CHCnav: hun machinebesturing heet McNav en draait onder com.huace.mcnav. Op de
+                // naam alleen "chc" zoeken zou te ruim zijn — dat staat ook in hun GPS-hulpjes —
+                // dus op het pakket, met de naam als tweede weg voor een versie die anders heet.
+                if (namen.any { it.contains("com.huace.mcnav") || it.contains("mcnav") }) lijst.add("CHCNAV")
             } catch (_: Exception) { return emptyList() }
             return lijst.toList().also { gevonden = it }
         }

@@ -62,7 +62,12 @@ class Prefs(private val ctx: Context) {
     // en het verdwijnt met de app. Meer hoeft het niet te doen dan deze installatie herkenbaar maken.
     suspend fun installatie(): String {
         ctx.dataStore.data.first()[INSTALLATIE]?.takeIf { it.isNotBlank() }?.let { return it }
-        val nieuw = java.util.UUID.randomUUID().toString()
+        // Afgeleid van het vaste toestelnummer, en niet meer willekeurig. Gevraagd: "wordt de code
+        // ergens onthouden als hij de app per ongeluk wist en moet herinstalleren?" Met een willekeurig
+        // id niet: nieuwe installatie, nieuw id, nieuwe code — en kantoor moest de tablet opnieuw
+        // toevoegen. Het nummer van Android blijft na een herinstallatie hetzelfde (niet na een
+        // fabrieksreset), dus komt dezelfde code terug. Een nieuwe code vragen gaat nu via de server.
+        val nieuw = vastId() ?: java.util.UUID.randomUUID().toString()
         var bewaard = nieuw
         // In één beweging nakijken en wegschrijven: vragen twee rondes tegelijk, dan mogen ze niet
         // elk een eigen id bedenken.
@@ -81,5 +86,23 @@ class Prefs(private val ctx: Context) {
      * al geclaimde code terug — en koppelde het zichzelf meteen weer, precies terwijl iemand het
      * net ontkoppeld had. Nu krijgt het een nieuw id en dus een nieuwe code.
      */
-    suspend fun wis() = ctx.dataStore.edit { it.remove(CODE); it.remove(TREE); it.remove(INSTALLATIE) }
+    suspend fun wis() = ctx.dataStore.edit { it.remove(CODE); it.remove(TREE); it.remove(INSTALLATIE); it.remove(VAST) }
+
+    /** Het id uit het vaste toestelnummer van Android, of null als dat er niet (bruikbaar) is. */
+    fun vastId(): String? = try {
+        val nr = android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        // 9774d56d682e549c is het nummer dat een reeks oude toestellen allemaal droegen: niet uniek.
+        if (nr.isNullOrBlank() || nr == "9774d56d682e549c") null
+        else java.security.MessageDigest.getInstance("SHA-256")
+            .digest(("mv3d-tablet:" + nr).toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(48)
+    } catch (_: Exception) { null }
+
+    // ── eenmalig overschakelen ──
+    // Een tablet van vóór het vaste id draagt een willekeurig id. Dat wordt één keer bij de server
+    // omgezet (zie SyncService); daarna staat hier true en gebeurt het nooit meer.
+    private val VAST = stringPreferencesKey("installatie_vast")
+    suspend fun vastGemaakt() = ctx.dataStore.data.first()[VAST] == "1"
+    suspend fun zetVastGemaakt(id: String) = ctx.dataStore.edit { it[INSTALLATIE] = id; it[VAST] = "1" }
 }

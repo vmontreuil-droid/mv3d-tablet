@@ -210,7 +210,17 @@ class MainActivity : ComponentActivity() {
                         // dienst gaat meteen weer aan en doet dan alleen dat. Een losgekoppelde
                         // tablet die maanden op een oude versie blijft staan, is precies wat we
                         // hierboven net dichtgezet hebben.
-                        onOntkoppel = { scope.launch { prefs.wis(); stopSync(); startSync() } },
+                        //
+                        // Met het vaste id (zie Prefs.installatie) komt een nieuwe code niet meer van
+                        // een nieuw id: eerst laat de server de koppeling los. Lukt dat niet — geen
+                        // bereik — dan gebeurt er niets, anders koppelde de tablet zich meteen weer.
+                        onOntkoppel = { klaar ->
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) { Api.loslaten(prefs.server(), prefs.installatie()) }
+                                if (ok) { prefs.wis(); stopSync(); startSync() }
+                                klaar(ok)
+                            }
+                        },
                         taal = Taal.huidig(ctx),
                         // Opnieuw opbouwen in de nieuwe taal; de dienst ook, want die schrijft de
                         // meldingen en de foutregel.
@@ -310,7 +320,7 @@ private fun Scherm (
     onKiesMap: () -> Unit,
     onBatterij: () -> Unit,
     onBijwerken: () -> Unit,
-    onOntkoppel: () -> Unit,
+    onOntkoppel: ((Boolean) -> Unit) -> Unit,
     taal: String,
     onTaal: (String) -> Unit,
 ) {
@@ -518,7 +528,34 @@ private fun Scherm (
         // ze zijn niet waarvoor je dit scherm opent.
         if (code.isNotBlank()) {
             TextButton(onClick = onKiesMap) { Text(stringResource(R.string.andere_map_kiezen), fontSize = 13.sp, color = TekstZacht) }
-            TextButton(onClick = onOntkoppel) { Text(stringResource(R.string.ontkoppelen), fontSize = 13.sp, color = TekstZacht) }
+            // ── "Nieuwe koppelcode", en niet meer "Ontkoppelen" ──
+            //
+            // Met een code die een herinstallatie overleeft, is dit geen handeling voor elke dag meer:
+            // het is voor een tablet die verkocht wordt of naar een andere firma gaat. Daarom een vraag
+            // ervoor die zegt wat er gebeurt — een machinist duwt er anders per ongeluk op.
+            var vraagNieuw by remember { mutableStateOf(false) }
+            var nieuwFout by remember { mutableStateOf(false) }
+            TextButton(onClick = { nieuwFout = false; vraagNieuw = true }) {
+                Text(stringResource(R.string.nieuwe_koppelcode), fontSize = 13.sp, color = TekstZacht)
+            }
+            if (nieuwFout) {
+                Text(stringResource(R.string.fout_code_geen_bereik), fontSize = 13.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error)
+            }
+            if (vraagNieuw) {
+                AlertDialog(
+                    onDismissRequest = { vraagNieuw = false },
+                    title = { Text(stringResource(R.string.nieuwe_koppelcode_vraag)) },
+                    text = { Text(stringResource(R.string.nieuwe_koppelcode_uitleg)) },
+                    confirmButton = {
+                        TextButton(onClick = { vraagNieuw = false; onOntkoppel { ok -> nieuwFout = !ok } }) {
+                            Text(stringResource(R.string.nieuwe_koppelcode_ja))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { vraagNieuw = false }) { Text(stringResource(R.string.annuleren)) }
+                    },
+                )
+            }
         } else if (!zelfIntikken) {
             // De oude weg, voor wie van kantoor al een code kreeg. Ze blijft bestaan: een machine
             // die eerst in het portaal aangemaakt werd, heeft haar code al.

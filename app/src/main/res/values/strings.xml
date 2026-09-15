@@ -46,7 +46,11 @@
     <string name="map_aanwijzen">Map aanwijzen</string>
     <string name="kiezer_staat_al_goed">De kiezer staat al op de map die we verwachten. Duw op Deze map gebruiken.</string>
     <string name="andere_map_kiezen">Andere map kiezen</string>
-    <string name="ontkoppelen">Ontkoppelen</string>
+    <string name="nieuwe_koppelcode">Nieuwe koppelcode</string>
+    <string name="nieuwe_koppelcode_vraag">Een nieuwe koppelcode maken?</string>
+    <string name="nieuwe_koppelcode_uitleg">Deze tablet hangt dan niet meer aan zijn machine. Kantoor moet de nieuwe code opnieuw toevoegen in de MV3D Convertor. Doe dit alleen als de tablet naar een andere machine of firma gaat.</string>
+    <string name="nieuwe_koppelcode_ja">Nieuwe code maken</string>
+    <string name="annuleren">Annuleren</string>
 
     <!-- ── zelf een code intikken ── -->
     <string name="code_gekregen">Code van kantoor gekregen? Tik hem hier in</string>

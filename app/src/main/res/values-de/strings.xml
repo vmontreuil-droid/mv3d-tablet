@@ -24,7 +24,11 @@
     <string name="map_aanwijzen">Ordner zuweisen</string>
     <string name="kiezer_staat_al_goed">Die Auswahl steht schon auf dem erwarteten Ordner. Drücken Sie auf Diesen Ordner verwenden.</string>
     <string name="andere_map_kiezen">Anderen Ordner wählen</string>
-    <string name="ontkoppelen">Entkoppeln</string>
+    <string name="nieuwe_koppelcode">Neuer Kopplungscode</string>
+    <string name="nieuwe_koppelcode_vraag">Einen neuen Kopplungscode erstellen?</string>
+    <string name="nieuwe_koppelcode_uitleg">Dieses Tablet ist dann nicht mehr mit seiner Maschine verbunden. Das Büro muss den neuen Code im MV3D Convertor erneut hinzufügen. Nur tun, wenn das Tablet an eine andere Maschine oder Firma geht.</string>
+    <string name="nieuwe_koppelcode_ja">Neuen Code erstellen</string>
+    <string name="annuleren">Abbrechen</string>
 
     <string name="code_gekregen">Einen Code vom Büro bekommen? Geben Sie ihn hier ein</string>
     <string name="koppelen">Koppeln</string>

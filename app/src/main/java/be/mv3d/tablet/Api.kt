@@ -125,6 +125,29 @@ class Api(private val server: String, private val code: String) {
             } catch (_: Exception) { null }
         }
 
+        /**
+         * Eén keer: de koppeling van het willekeurige id naar het vaste zetten. True als de server het
+         * aannam — dan meldt hij deze tablet met het vaste id als gekoppeld, met dezelfde code.
+         */
+        fun overschakelen(server: String, vast: String, vorige: String, code: String): Boolean = try {
+            val body = JSONObject().put("installatie", vast).put("vorige", vorige).put("code", code).put("app", "tablet")
+            val req = Request.Builder().url("$server/api/machines/aanmelden")
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            kort.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return false
+                val o = JSONObject(resp.body?.string() ?: return false)
+                o.optBoolean("ok") && o.optBoolean("gekoppeld") && o.optString("code") == code
+            }
+        } catch (_: Exception) { false }
+
+        /** Een nieuwe koppelcode: de server laat de koppeling van dit toestel los. */
+        fun loslaten(server: String, installatie: String): Boolean = try {
+            val body = JSONObject().put("installatie", installatie).put("loslaten", true)
+            val req = Request.Builder().url("$server/api/machines/aanmelden")
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            kort.newCall(req).execute().use { it.isSuccessful }
+        } catch (_: Exception) { false }
+
         /** De naam die de eigenaar het toestel gaf, als Android die laat lezen; anders het model. */
         private fun toestelNaam(ctx: Context): String = try {
             Settings.Global.getString(ctx.contentResolver, Settings.Global.DEVICE_NAME)

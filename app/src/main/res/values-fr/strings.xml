@@ -24,7 +24,11 @@
     <string name="map_aanwijzen">Désigner le dossier</string>
     <string name="kiezer_staat_al_goed">Le sélecteur est déjà sur le dossier attendu. Appuyez sur Utiliser ce dossier.</string>
     <string name="andere_map_kiezen">Choisir un autre dossier</string>
-    <string name="ontkoppelen">Dissocier</string>
+    <string name="nieuwe_koppelcode">Nouveau code d\'appairage</string>
+    <string name="nieuwe_koppelcode_vraag">Créer un nouveau code d\'appairage ?</string>
+    <string name="nieuwe_koppelcode_uitleg">Cette tablette ne sera plus liée à sa machine. Le bureau devra ajouter le nouveau code dans MV3D Convertor. À faire uniquement si la tablette passe à une autre machine ou une autre entreprise.</string>
+    <string name="nieuwe_koppelcode_ja">Créer un nouveau code</string>
+    <string name="annuleren">Annuler</string>
 
     <string name="code_gekregen">Vous avez reçu un code du bureau ? Tapez-le ici</string>
     <string name="koppelen">Associer</string>

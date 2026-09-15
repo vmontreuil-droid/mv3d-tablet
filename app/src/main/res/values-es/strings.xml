@@ -24,7 +24,11 @@
     <string name="map_aanwijzen">Indicar la carpeta</string>
     <string name="kiezer_staat_al_goed">El selector ya está en la carpeta que esperamos. Pulse Usar esta carpeta.</string>
     <string name="andere_map_kiezen">Elegir otra carpeta</string>
-    <string name="ontkoppelen">Desvincular</string>
+    <string name="nieuwe_koppelcode">Nuevo código de vinculación</string>
+    <string name="nieuwe_koppelcode_vraag">¿Crear un nuevo código de vinculación?</string>
+    <string name="nieuwe_koppelcode_uitleg">Esta tableta dejará de estar vinculada a su máquina. La oficina tendrá que volver a añadir el nuevo código en MV3D Convertor. Hágalo solo si la tableta pasa a otra máquina o empresa.</string>
+    <string name="nieuwe_koppelcode_ja">Crear nuevo código</string>
+    <string name="annuleren">Cancelar</string>
 
     <string name="code_gekregen">¿Le han dado un código en la oficina? Tecléelo aquí</string>
     <string name="koppelen">Vincular</string>

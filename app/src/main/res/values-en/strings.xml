@@ -24,7 +24,11 @@
     <string name="map_aanwijzen">Point out the folder</string>
     <string name="kiezer_staat_al_goed">The picker is already on the folder we expect. Press Use this folder.</string>
     <string name="andere_map_kiezen">Choose another folder</string>
-    <string name="ontkoppelen">Unpair</string>
+    <string name="nieuwe_koppelcode">New pairing code</string>
+    <string name="nieuwe_koppelcode_vraag">Create a new pairing code?</string>
+    <string name="nieuwe_koppelcode_uitleg">This tablet will no longer be linked to its machine. The office will have to add the new code again in MV3D Convertor. Only do this if the tablet moves to another machine or company.</string>
+    <string name="nieuwe_koppelcode_ja">Create new code</string>
+    <string name="annuleren">Cancel</string>
 
     <string name="code_gekregen">Got a code from the office? Type it in here</string>
     <string name="koppelen">Pair</string>

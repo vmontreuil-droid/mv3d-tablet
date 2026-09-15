@@ -52,6 +52,7 @@ class SyncService : Service() {
 
     /** Hoe vaak een bestand al mislukt is, en wanneer we het opnieuw mogen proberen. */
     private val pogingen = HashMap<String, Int>()
+    private var vastGeprobeerd = 0L
     private val later = HashMap<String, Long>()
 
     /** Waar een werf ligt: oosting, noording en de naam van het stelsel zoals de tablet die meldt. */
@@ -277,6 +278,19 @@ class SyncService : Service() {
         // uit — en dan zei de app "niet gekoppeld" terwijl ze net nog met de server gepraat had.
         lastOk = System.currentTimeMillis()
         res.name?.let { machineName = it }
+
+        // ── één keer: van het willekeurige id naar het vaste ──
+        //
+        // Zodat ook een tablet die al gekoppeld was, een herinstallatie overleeft (zie Prefs.installatie).
+        // Lukt het niet — geen bereik, een oude server — dan de volgende ronde nog eens, hoogstens elk uur.
+        if (!prefs.vastGemaakt() && System.currentTimeMillis() - vastGeprobeerd > 3_600_000L) {
+            vastGeprobeerd = System.currentTimeMillis()
+            val vast = prefs.vastId()
+            val nu = prefs.installatie()
+            if (vast != null) {
+                if (nu == vast || Api.overschakelen(server, vast, nu, code)) prefs.zetVastGemaakt(vast)
+            }
+        }
 
         // ── de bestanden, en eentje dat faalt houdt de rest niet tegen ──
         //

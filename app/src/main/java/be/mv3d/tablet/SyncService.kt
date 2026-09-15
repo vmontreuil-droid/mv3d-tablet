@@ -407,7 +407,9 @@ class SyncService : Service() {
                 if (ouder.listFiles().any { (it.name ?: "").equals(naar, ignoreCase = true) }) {
                     throw RuntimeException("er staat al een werf met die naam")
                 }
-                if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
+                val oud = map.name ?: delen.last()
+                if (map.findFile("$oud.hcprj")?.isFile == true) chcHernoem(map, oud, naar)
+                else if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
                 hernoemd.add(PullResult(q.id, true, 0L, null))
             } catch (e: Exception) {
                 hernoemd.add(PullResult(q.id, false, 0L, e.message ?: "onbekend"))
@@ -501,6 +503,134 @@ class SyncService : Service() {
         }
     }
 
+    /**
+     * Een CHCnav-werf een andere naam geven.
+     *
+     * Bij Unicontrol volstaat de map. Bij McNav niet, en dat is gemeten in de emulator (15/9/2026):
+     * een kopie met alleen een andere mapnaam verdwijnt zonder melding uit de projectlijst, want McNav
+     * zoekt `<map>/<map>.json`. De naam staat op vier plaatsen:
+     *
+     *   de map zelf
+     *   `<naam>.hcprj` en `<naam>.json`         de bestandsnamen
+     *   in dat .json: `name` en `crsPath`       crsPath is een volledig pad met de map erin
+     *   in survey-stakeout.db                   het lijnwerk (default_basemap_record.PATH) staat
+     *                                           er als volledig pad
+     *
+     * Met die vier aangepast opende de werf in McNav, met oppervlak en lijnwerk.
+     *
+     * Alleen `/Projects/<naam>/` wordt vervangen, en niet elke `/<naam>/`: een ontwerp heet vaak net
+     * als de werf ("DesignData/MV3D KANT EN KLAAR/") en die map blijft zoals ze is.
+     *
+     * Eerst alles voorbereiden, dan pas iets veranderen: lukt het lezen niet, dan is er niets aangeraakt.
+     */
+    private fun chcHernoem(map: DocumentFile, oud: String, naar: String) {
+        // Een databank die McNav nu open heeft, draagt een -wal of -journal. Wie die overschrijft,
+        // gooit weg wat McNav nog niet weggeschreven heeft — en haalt de werf onder zijn voeten weg.
+        if (map.listFiles().any { val n = it.name ?: ""; n.startsWith("survey-stakeout.db-") }) {
+            throw RuntimeException("de werf is open in McNav — open een andere werf en vraag het opnieuw")
+        }
+
+        val json = map.findFile("$oud.json")?.takeIf { it.isFile }
+        val nieuweJson = json?.let { doc ->
+            val tekst = contentResolver.openInputStream(doc.uri)?.use { it.readBytes().decodeToString() }
+                ?: throw RuntimeException("$oud.json kon niet gelezen worden")
+            chcJson(tekst, oud, naar)
+        }
+        val db = map.findFile("survey-stakeout.db")?.takeIf { it.isFile }
+        val nieuweDb = db?.let { chcDb(it, oud, naar) }
+
+        try {
+            if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
+
+            // Vanaf hier is de map hernoemd. Wat nog misloopt, wordt genoemd — niet teruggedraaid,
+            // want een half teruggedraaide werf is nog verder van huis.
+            val mis = ArrayList<String>()
+            map.findFile("$oud.hcprj")?.let { if (!it.renameTo("$naar.hcprj")) mis.add("$oud.hcprj") }
+            if (json != null && nieuweJson != null) {
+                try {
+                    val doc = map.findFile("$oud.json") ?: throw RuntimeException()
+                    contentResolver.openOutputStream(doc.uri, "wt")?.use { it.write(nieuweJson.toByteArray()) }
+                        ?: throw RuntimeException()
+                    if (!doc.renameTo("$naar.json")) throw RuntimeException()
+                } catch (_: Exception) { mis.add("$oud.json") }
+            }
+            if (nieuweDb != null) {
+                try {
+                    val doc = map.findFile("survey-stakeout.db") ?: throw RuntimeException()
+                    contentResolver.openOutputStream(doc.uri, "wt")?.use { uit -> nieuweDb.inputStream().use { it.copyTo(uit) } }
+                        ?: throw RuntimeException()
+                } catch (_: Exception) { mis.add("survey-stakeout.db") }
+            }
+            if (mis.isNotEmpty()) throw RuntimeException("map hernoemd, maar niet bijgewerkt: " + mis.joinToString(", "))
+        } finally {
+            nieuweDb?.delete()
+        }
+    }
+
+    /** Het projectbestand met de nieuwe naam: `name`, en de map in `crsPath`. */
+    private fun chcJson(tekst: String, oud: String, naar: String): String {
+        // Op de tekst en niet via JSONObject: dat zet de sleutels in een andere volgorde en schrijft
+        // elke / als \/. Het werkt allebei, maar een bestand dat er anders uitziet dan het hunne is een
+        // bestand waar je bij een storing aan gaat twijfelen. Een werfnaam draagt geen " of \ (de
+        // server laat die niet toe), dus de naam staat er letterlijk in.
+        val q = Regex.escape(oud)
+        val uit = tekst
+            .replace(Regex("(\"name\"\\s*:\\s*\")$q(\")"), "$1" + Regex.escapeReplacement(naar) + "$2")
+            .replace("/Projects/$oud/", "/Projects/$naar/")
+            .replace("\\/Projects\\/$oud\\/", "\\/Projects\\/$naar\\/")
+        // En nagaan dat het gelukt is. Staat de naam er anders in dan we denken, dan liever stoppen
+        // dan een .json wegschrijven waarin de oude naam blijft staan.
+        if (JSONObject(uit).optString("name") != naar) throw RuntimeException("de naam in $oud.json staat er anders in dan verwacht")
+        return uit
+    }
+
+    /**
+     * Een kopie van survey-stakeout.db met de volledige paden naar de nieuwe map.
+     *
+     * Elke tekstkolom van elke gewone tabel, niet alleen die ene waar we het gezien hebben: een werf
+     * die McNav zelf aanmaakte kan ook elders een volledig pad dragen. De r-tree is een virtuele tabel
+     * en draagt geen tekst; die blijft buiten schot.
+     */
+    private fun chcDb(doc: DocumentFile, oud: String, naar: String): java.io.File {
+        val kopie = java.io.File.createTempFile("werf", ".db", cacheDir)
+        try {
+            contentResolver.openInputStream(doc.uri)?.use { inn -> kopie.outputStream().use { inn.copyTo(it) } }
+                ?: throw RuntimeException("survey-stakeout.db kon niet gelezen worden")
+            val van = "/Projects/$oud/"
+            val tot = "/Projects/$naar/"
+            val sql = android.database.sqlite.SQLiteDatabase.openDatabase(
+                kopie.path, null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READWRITE or android.database.sqlite.SQLiteDatabase.NO_LOCALIZED_COLLATORS,
+            )
+            try {
+                // Android zet een databank bij het openen soms stil in WAL-modus, en dat staat dan in
+                // de kop van het bestand. McNav schrijft de gewone modus (bytes 18–19 op 1, gemeten op
+                // drie werven); zo moet ze terugkomen.
+                sql.disableWriteAheadLogging()
+                val tabellen = ArrayList<String>()
+                sql.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND sql NOT LIKE 'CREATE VIRTUAL%'", null).use { c ->
+                    while (c.moveToNext()) tabellen.add(c.getString(0))
+                }
+                for (t in tabellen) {
+                    val kolommen = ArrayList<String>()
+                    sql.rawQuery("PRAGMA table_info(\"${t.replace("\"", "\"\"")}\")", null).use { c ->
+                        val naam = c.getColumnIndex("name"); val soort = c.getColumnIndex("type")
+                        while (c.moveToNext()) if ((c.getString(soort) ?: "").uppercase().contains("TEXT")) kolommen.add(c.getString(naam))
+                    }
+                    for (k in kolommen) {
+                        val tq = "\"" + t.replace("\"", "\"\"") + "\""
+                        val kq = "\"" + k.replace("\"", "\"\"") + "\""
+                        sql.execSQL("UPDATE $tq SET $kq = replace($kq, ?, ?) WHERE instr($kq, ?) > 0", arrayOf(van, tot, van))
+                    }
+                }
+            } finally { sql.close() }
+            return kopie
+        } catch (e: Exception) {
+            kopie.delete()
+            throw e
+        }
+    }
+
     private fun zoekBestand(tree: DocumentFile, pad: String): DocumentFile? {
         val delen = pad.replace('\\', '/').split('/').filter { it.isNotBlank() && it != ".." }
         if (delen.isEmpty()) return null
@@ -524,6 +654,7 @@ class SyncService : Service() {
     private fun mappenlijst(tree: DocumentFile): JSONObject? = try {
         val files = JSONArray()
         val ymls = ArrayList<Triple<String, DocumentFile, Long>>()
+        val ontwerpen = ArrayList<Triple<String, DocumentFile, Long>>()
         fun loop(dir: DocumentFile, prefix: String, diepte: Int) {
             if (diepte > 5 || files.length() >= 800) return
             for (f in dir.listFiles()) {
@@ -537,6 +668,14 @@ class SyncService : Service() {
                     // voor de werven waarvan we het antwoord nog niet hebben.
                     if (nm.equals("Project.yml", ignoreCase = true) && prefix.isNotEmpty()) {
                         ymls.add(Triple(prefix, f, f.lastModified()))
+                    }
+                    // Bij CHCnav staat de plek nergens apart, maar wel in het ontwerp: een LandXML onder
+                    // <werf>/DesignData/<ontwerp>/. Eén per werf is genoeg — het is een speld, geen meting.
+                    if (nm.endsWith(".xml", ignoreCase = true) && "/$prefix/".contains("/DesignData/")) {
+                        val werf = prefix.substringBefore("/DesignData")
+                        if (werf.isNotEmpty() && !prefix.startsWith("DesignData") && ontwerpen.none { it.first == werf }) {
+                            ontwerpen.add(Triple(werf, f, f.lastModified()))
+                        }
                     }
                 }
             }
@@ -552,7 +691,54 @@ class SyncService : Service() {
             .put("rootUri", tree.uri.toString())
             .put("files", files)
             .put("plekken", plekken(ymls))
+            .put("ontwerpplekken", ontwerpplekken(ontwerpen))
     } catch (_: Exception) { null }
+
+    /** Wat we al uit een ontwerp gelezen hebben: pad → (datum van dat bestand, noord en oost). */
+    private val ontwerpGeheugen = HashMap<String, Pair<Long, Pair<Double, Double>?>>()
+
+    /**
+     * Het eerste punt van het ontwerp van elke CHC-werf, ruw.
+     *
+     * `<P id="1">noord oost hoogte</P>` — de volgorde van LandXML. Welk stelsel dat is en of het ergens
+     * op slaat, beslist de server: die kent de stelsels en ziet het .crd in de mappenlijst. Hier gaan
+     * alleen de twee getallen mee.
+     *
+     * Alleen het begin van het bestand: een oppervlak telt tienduizenden punten en het eerste staat
+     * vooraan. Wie verder moet zoeken, heeft geen oppervlak — dan geen speld.
+     */
+    private fun ontwerpplekken(lijst: List<Triple<String, DocumentFile, Long>>): JSONArray {
+        val uit = JSONArray()
+        var gelezen = 0
+        for ((map, doc, datum) in lijst) {
+            val sleutel = map + "|" + (doc.name ?: "")
+            val onthouden = ontwerpGeheugen[sleutel]
+            val punt = if (onthouden != null && onthouden.first == datum) onthouden.second else {
+                if (gelezen >= 40) continue
+                gelezen++
+                val p = try { eerstePunt(doc) } catch (_: Exception) { null }
+                ontwerpGeheugen[sleutel] = Pair(datum, p)
+                p
+            }
+            if (punt != null) uit.put(JSONObject().put("map", map).put("n", punt.first).put("e", punt.second))
+        }
+        return uit
+    }
+
+    private val EERSTE_P = Regex("<P\\b[^>]*>\\s*(-?[0-9][0-9.eE+-]*)\\s+(-?[0-9][0-9.eE+-]*)")
+
+    private fun eerstePunt(doc: DocumentFile): Pair<Double, Double>? {
+        val kop = contentResolver.openInputStream(doc.uri)?.use { inn ->
+            val buf = ByteArray(256 * 1024)
+            var n = 0
+            while (n < buf.size) { val r = inn.read(buf, n, buf.size - n); if (r <= 0) break; n += r }
+            String(buf, 0, n, Charsets.UTF_8)
+        } ?: return null
+        val m = EERSTE_P.find(kop) ?: return null
+        val noord = m.groupValues[1].toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
+        val oost = m.groupValues[2].toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
+        return Pair(noord, oost)
+    }
 
     /**
      * Waar liggen die werven?

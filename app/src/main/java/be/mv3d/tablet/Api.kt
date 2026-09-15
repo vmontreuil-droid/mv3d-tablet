@@ -207,7 +207,9 @@ class Api(private val server: String, private val code: String) {
         // toch zo'n opdracht, dan bleef die hangen en gebeurde er niets. Nu zegt de app het zelf, en
         // deelt de server die opdrachten alleen uit aan wie het meldt. Een oudere app hoort meteen
         // waarom niet.
-        body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen"))
+        // "hernoemen-chc": deze versie past bij een CHCnav-werf ook het .hcprj, het .json en de
+        // databank aan. Een oudere hernoemt alleen de map, en dan verdwijnt de werf uit McNav.
+        body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen").put("hernoemen-chc"))
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->

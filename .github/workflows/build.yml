@@ -29,8 +29,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # ── de SDK die al op de runner staat ──
+      #
+      # Hier stond android-actions/setup-android@v3. Die viel twee keer op rij om bij stap vier van
+      # negen, vóór er één regel Kotlin gecompileerd was — dezelfde commit die er de dag ervoor nog
+      # doorheen kwam. Dan ligt het niet aan de code.
+      #
+      # De ubuntu-runners van GitHub dragen de Android SDK al, met ANDROID_HOME gezet. Die gebruiken
+      # is niet alleen een omweg om een kapotte action heen: het scheelt ook het binnenhalen van een
+      # paar honderd megabyte bij elke bouw.
+      #
+      # Staat hij er niet, dan stopt het hier met een zin die zegt wat er aan de hand is — en niet
+      # veertig regels verder met een gradle-fout waar dat niet uit af te lezen is.
       - name: Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME" ]; then
+            echo "Geen Android SDK op deze runner (ANDROID_HOME='$ANDROID_HOME')."
+            echo "Zet android-actions/setup-android terug, of kies een runner die er een heeft."
+            exit 1
+          fi
+          echo "SDK: $ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" 2>/dev/null || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
 
       - name: Gradle-wrapper genereren
         run: gradle wrapper --gradle-version 8.9

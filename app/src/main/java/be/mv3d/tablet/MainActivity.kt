@@ -323,7 +323,15 @@ private fun Scherm (
         }
     }
     val laatste = SyncService.lastOk
-    val leeft = gekoppeld && laatste > 0 && (tik - laatste) < 30_000
+    // ── `tik` altijd lezen, niet achter een && ──
+    //
+    // Hier stond `gekoppeld && laatste > 0 && (tik - laatste) < 30_000`. Compose hertekent alleen als
+    // een toestand verandert die bij het tekenen gelezen is. Opende de app vóór de eerste ronde klaar
+    // was (laatste = 0), dan brak de && af vóór `tik` — die werd dus nooit gelezen, en het scherm
+    // hertekende nooit meer. Gemeten op Picon (15/9/2026, na het vanzelf bijwerken naar build 113):
+    // "Niet gekoppeld" op het scherm, terwijl de server hem elke tien seconden zag.
+    val nu = tik
+    val leeft = gekoppeld && laatste > 0 && (nu - laatste) < 30_000
 
     // De code klopt al, maar de map is nog niet aangewezen: dan is er nog één tik te doen.
     val wachtOpMap = code.isNotBlank() && !gekoppeld

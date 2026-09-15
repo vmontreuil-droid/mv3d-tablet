@@ -408,8 +408,11 @@ class SyncService : Service() {
                     throw RuntimeException("er staat al een werf met die naam")
                 }
                 val oud = map.name ?: delen.last()
-                if (map.findFile("$oud.hcprj")?.isFile == true) chcHernoem(map, oud, naar)
-                else if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
+                // Een CHC-werf herken je aan haar .hcprj — op de naam van dat bestand en niet op die
+                // van de map, want een werf die ooit half hernoemd is draagt er twee verschillende.
+                val hcprj = map.listFiles().firstOrNull { it.isFile && (it.name ?: "").endsWith(".hcprj", ignoreCase = true) }
+                if (hcprj != null) chcHernoem(ouder, map, oud, (hcprj.name ?: "").removeSuffix(".hcprj").removeSuffix(".HCPRJ"), naar)
+                else if (hernoemIn(ouder, map, oud, naar) == null) throw RuntimeException("de map kon niet hernoemd worden")
                 hernoemd.add(PullResult(q.id, true, 0L, null))
             } catch (e: Exception) {
                 hernoemd.add(PullResult(q.id, false, 0L, e.message ?: "onbekend"))
@@ -522,41 +525,49 @@ class SyncService : Service() {
      * als de werf ("DesignData/MV3D KANT EN KLAAR/") en die map blijft zoals ze is.
      *
      * Eerst alles voorbereiden, dan pas iets veranderen: lukt het lezen niet, dan is er niets aangeraakt.
+     *
+     * `oudMap` is de naam van de map, `oud` die van het .hcprj. Normaal zijn ze gelijk. Zijn ze het
+     * niet — een werf die eerder half hernoemd is — dan maakt dit ze weer gelijk.
      */
-    private fun chcHernoem(map: DocumentFile, oud: String, naar: String) {
-        // Een databank die McNav nu open heeft, draagt een -wal of -journal. Wie die overschrijft,
-        // gooit weg wat McNav nog niet weggeschreven heeft — en haalt de werf onder zijn voeten weg.
+    private fun chcHernoem(ouder: DocumentFile, map: DocumentFile, oudMap: String, oud: String, naar: String) {
+        // Een databank waar McNav middenin schrijft, draagt een -journal of -wal. Wie die overschrijft,
+        // gooit weg wat McNav nog niet weggeschreven heeft.
         if (map.listFiles().any { val n = it.name ?: ""; n.startsWith("survey-stakeout.db-") }) {
             throw RuntimeException("de werf is open in McNav — open een andere werf en vraag het opnieuw")
         }
+        val namen = listOf(oud, oudMap).distinct()
 
         val json = map.findFile("$oud.json")?.takeIf { it.isFile }
         val nieuweJson = json?.let { doc ->
             val tekst = contentResolver.openInputStream(doc.uri)?.use { it.readBytes().decodeToString() }
                 ?: throw RuntimeException("$oud.json kon niet gelezen worden")
-            chcJson(tekst, oud, naar)
+            chcJson(tekst, namen, naar)
         }
         val db = map.findFile("survey-stakeout.db")?.takeIf { it.isFile }
-        val nieuweDb = db?.let { chcDb(it, oud, naar) }
+        val nieuweDb = db?.let { chcDb(it, namen, naar) }
 
         try {
-            if (!map.renameTo(naar)) throw RuntimeException("de map kon niet hernoemd worden")
+            val werf = hernoemIn(ouder, map, oudMap, naar) ?: throw RuntimeException("de map kon niet hernoemd worden")
 
             // Vanaf hier is de map hernoemd. Wat nog misloopt, wordt genoemd — niet teruggedraaid,
-            // want een half teruggedraaide werf is nog verder van huis.
+            // want een half teruggedraaide werf is nog verder van huis. Een volgende hernoeming
+            // herstelt het wel: die leest de oude naam uit het .hcprj en niet uit de map.
             val mis = ArrayList<String>()
-            map.findFile("$oud.hcprj")?.let { if (!it.renameTo("$naar.hcprj")) mis.add("$oud.hcprj") }
+            if (oud != naar) {
+                val h = werf.findFile("$oud.hcprj")
+                if (h == null || hernoemIn(werf, h, "$oud.hcprj", "$naar.hcprj") == null) mis.add("$oud.hcprj")
+            }
             if (json != null && nieuweJson != null) {
                 try {
-                    val doc = map.findFile("$oud.json") ?: throw RuntimeException()
+                    val doc = werf.findFile("$oud.json") ?: throw RuntimeException()
                     contentResolver.openOutputStream(doc.uri, "wt")?.use { it.write(nieuweJson.toByteArray()) }
                         ?: throw RuntimeException()
-                    if (!doc.renameTo("$naar.json")) throw RuntimeException()
+                    if (oud != naar && hernoemIn(werf, doc, "$oud.json", "$naar.json") == null) throw RuntimeException()
                 } catch (_: Exception) { mis.add("$oud.json") }
             }
             if (nieuweDb != null) {
                 try {
-                    val doc = map.findFile("survey-stakeout.db") ?: throw RuntimeException()
+                    val doc = werf.findFile("survey-stakeout.db") ?: throw RuntimeException()
                     contentResolver.openOutputStream(doc.uri, "wt")?.use { uit -> nieuweDb.inputStream().use { it.copyTo(uit) } }
                         ?: throw RuntimeException()
                 } catch (_: Exception) { mis.add("survey-stakeout.db") }
@@ -567,20 +578,34 @@ class SyncService : Service() {
         }
     }
 
+    /**
+     * Hernoemen, en dan kijken wat er werkelijk staat.
+     *
+     * Gemeten op Android 9 (BlueStacks, 15/9/2026): DocumentsContract.renameDocument hernoemt de map
+     * wél, en gooit daarna "Missing file" op het oude pad — dus renameTo zegt false. Wie dat gelooft,
+     * stopt halverwege en laat een werf achter waarvan de map een nieuwe naam heeft en de bestanden
+     * erin de oude: in McNav verdwijnt ze. Dus: staat de nieuwe naam er en de oude niet meer, dan is
+     * het gelukt, wat de oproep ook zei.
+     */
+    private fun hernoemIn(ouder: DocumentFile, doc: DocumentFile, oud: String, naar: String): DocumentFile? {
+        if (doc.renameTo(naar)) return doc
+        val nieuw = ouder.findFile(naar) ?: return null
+        return if (ouder.findFile(oud) == null) nieuw else null
+    }
+
     /** Het projectbestand met de nieuwe naam: `name`, en de map in `crsPath`. */
-    private fun chcJson(tekst: String, oud: String, naar: String): String {
+    private fun chcJson(tekst: String, oud: List<String>, naar: String): String {
         // Op de tekst en niet via JSONObject: dat zet de sleutels in een andere volgorde en schrijft
         // elke / als \/. Het werkt allebei, maar een bestand dat er anders uitziet dan het hunne is een
         // bestand waar je bij een storing aan gaat twijfelen. Een werfnaam draagt geen " of \ (de
-        // server laat die niet toe), dus de naam staat er letterlijk in.
-        val q = Regex.escape(oud)
-        val uit = tekst
-            .replace(Regex("(\"name\"\\s*:\\s*\")$q(\")"), "$1" + Regex.escapeReplacement(naar) + "$2")
-            .replace("/Projects/$oud/", "/Projects/$naar/")
-            .replace("\\/Projects\\/$oud\\/", "\\/Projects\\/$naar\\/")
+        // server laat die niet toe).
+        var uit = tekst.replace(Regex("(\"name\"\\s*:\\s*\")[^\"]*(\")"), "$1" + Regex.escapeReplacement(naar) + "$2")
+        for (o in oud) {
+            uit = uit.replace("/Projects/$o/", "/Projects/$naar/").replace("\\/Projects\\/$o\\/", "\\/Projects\\/$naar\\/")
+        }
         // En nagaan dat het gelukt is. Staat de naam er anders in dan we denken, dan liever stoppen
         // dan een .json wegschrijven waarin de oude naam blijft staan.
-        if (JSONObject(uit).optString("name") != naar) throw RuntimeException("de naam in $oud.json staat er anders in dan verwacht")
+        if (JSONObject(uit).optString("name") != naar) throw RuntimeException("de naam in het .json staat er anders in dan verwacht")
         return uit
     }
 
@@ -591,12 +616,11 @@ class SyncService : Service() {
      * die McNav zelf aanmaakte kan ook elders een volledig pad dragen. De r-tree is een virtuele tabel
      * en draagt geen tekst; die blijft buiten schot.
      */
-    private fun chcDb(doc: DocumentFile, oud: String, naar: String): java.io.File {
+    private fun chcDb(doc: DocumentFile, oud: List<String>, naar: String): java.io.File {
         val kopie = java.io.File.createTempFile("werf", ".db", cacheDir)
         try {
             contentResolver.openInputStream(doc.uri)?.use { inn -> kopie.outputStream().use { inn.copyTo(it) } }
                 ?: throw RuntimeException("survey-stakeout.db kon niet gelezen worden")
-            val van = "/Projects/$oud/"
             val tot = "/Projects/$naar/"
             val sql = android.database.sqlite.SQLiteDatabase.openDatabase(
                 kopie.path, null,
@@ -620,7 +644,10 @@ class SyncService : Service() {
                     for (k in kolommen) {
                         val tq = "\"" + t.replace("\"", "\"\"") + "\""
                         val kq = "\"" + k.replace("\"", "\"\"") + "\""
-                        sql.execSQL("UPDATE $tq SET $kq = replace($kq, ?, ?) WHERE instr($kq, ?) > 0", arrayOf(van, tot, van))
+                        for (o in oud) {
+                            val van = "/Projects/$o/"
+                            sql.execSQL("UPDATE $tq SET $kq = replace($kq, ?, ?) WHERE instr($kq, ?) > 0", arrayOf(van, tot, van))
+                        }
                     }
                 }
             } finally { sql.close() }

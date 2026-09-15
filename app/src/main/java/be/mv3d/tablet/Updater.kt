@@ -2,7 +2,10 @@ package be.mv3d.tablet
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.app.PendingIntent
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.FileProvider
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -117,6 +120,47 @@ object Updater {
         } finally { bezig = false }
     }
 
+    /**
+     * Stil installeren — alleen als wij eigenaar van het toestel zijn.
+     *
+     * Dit is de enige weg waarop een zij-geladen app zichzelf zonder tik kan bijwerken. Zie
+     * Beheerder.kt: het vraagt één keer adb per tablet, en daarna nooit meer iets.
+     *
+     * De app wordt hierbij vervangen terwijl ze draait. Android stopt haar dan en start haar
+     * opnieuw; de dienst komt vanzelf terug (RECEIVE_BOOT_COMPLETED en de herstart van de
+     * voorgrondddienst). Er gaat geen werf verloren: wat binnengehaald was staat al op schijf, en
+     * wat nog in de wachtrij stond wordt bij de volgende ronde opnieuw opgehaald.
+     *
+     * Geeft terug of het gelukt is te STARTEN. Of de installatie zelf slaagt weten we hier niet —
+     * dat komt later binnen, en als het misgaat blijft de melding staan en kan de machinist het
+     * alsnog met de hand doen. Stil falen mag niet: dan draait de vloot maanden op een oude
+     * versie zonder dat iemand het ziet.
+     */
+    fun installeerStil(ctx: Context, versionCode: Int): Boolean {
+        if (!Beheerder.isEigenaar(ctx)) return false
+        val apk = bestand(ctx, versionCode)
+        if (!apk.exists() || apk.length() < 100_000) return false
+        return try {
+            val pi = ctx.packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            val id = pi.createSession(params)
+            pi.openSession(id).use { s ->
+                s.openWrite("mv3d", 0, apk.length()).use { uit ->
+                    apk.inputStream().use { it.copyTo(uit, 64 * 1024) }
+                    s.fsync(uit)
+                }
+                // Waar het antwoord heen mag. We doen er niets mee behalve het niet laten vallen:
+                // zonder een ontvanger weigert Android de sessie.
+                val heen = Intent(ctx, MainActivity::class.java)
+                val vlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                else PendingIntent.FLAG_UPDATE_CURRENT
+                s.commit(PendingIntent.getActivity(ctx, 0, heen, vlag).intentSender)
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** De installer van Android openen. Hier tikt de machinist "Installeren". */
     fun installatie(ctx: Context, versionCode: Int): Intent {
         val uri: Uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", bestand(ctx, versionCode))
@@ -126,7 +170,15 @@ object Updater {
         }
     }
 
+    /**
+     * Bijwerken. Stil als het kan, met een tik als het moet.
+     *
+     * De volgorde is niet vrijblijvend: lukt het stille pad niet — geen eigenaar, een toestel dat
+     * het weigert — dan moet de gewone weg er nog zijn. Anders zou een tablet die niet als
+     * eigenaar gezet is helemaal niet meer bijwerken, en dat is slechter dan waar we vandaan komen.
+     */
     fun installeer(ctx: Context, versionCode: Int) {
+        if (installeerStil(ctx, versionCode)) return
         try { ctx.startActivity(installatie(ctx, versionCode)) } catch (_: Exception) { }
     }
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wat de app als eigenaar van het toestel mag.
+
+  Bewust leeg gelaten op één ding na. Een device owner kán het toestel wissen, een wachtwoord
+  afdwingen, apps blokkeren — wij willen daar niets van. Wat we nodig hebben is dat Android ons als
+  eigenaar erkent; de twee dingen die we ermee doen (stil bijwerken en bij de werfmappen kunnen)
+  hangen aan die stand zelf en niet aan een beleidsregel hier.
+
+  Staat er dus ooit iemand voor om hier iets bij te zetten: het is de tablet van de klant, en wij
+  zijn er te gast.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

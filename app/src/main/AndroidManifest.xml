@@ -90,5 +90,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- ── de app als eigenaar van het toestel ──
+             Zonder dit kan een zij-geladen app zichzelf niet stil bijwerken: Android vraagt elke
+             keer om een bevestiging, en in een cabine gebeurt dat niet. Zie Beheerder.kt voor wat
+             het kost (één keer adb per tablet) en wat het niet doet. Is het niet gezet, dan werkt
+             alles zoals het werkte. -->
+        <receiver
+            android:name=".Beheerder"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/beheerder" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

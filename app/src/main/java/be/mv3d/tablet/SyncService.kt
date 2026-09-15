@@ -205,6 +205,16 @@ class SyncService : Service() {
         if (!Updater.haal(this, u)) return
         prefs.setKlaar(u.versionCode, u.versionName)
         updateKlaar = u.versionCode; updateNaam = u.versionName
+        // ── als wij eigenaar zijn: meteen, zonder iemand ──
+        //
+        // Gevraagd: het bijwerken moet volledig vanzelf gaan. Op een tablet die als eigenaar gezet
+        // is, kan dat — zie Beheerder.kt. Dan hoeft er geen melding te komen waar in een cabine
+        // toch niemand op tikt, en loopt de vloot niet maanden achter.
+        //
+        // Lukt het niet, dan blijft alles zoals het was: de melding in de balk en één tik. Daarom
+        // wordt er pas gemeld als het stille pad niet gewerkt heeft, en niet andersom — anders
+        // staat er een melding voor iets dat al gebeurd is.
+        if (Updater.installeerStil(this, u.versionCode)) return
         meldBijwerking()
     }
 

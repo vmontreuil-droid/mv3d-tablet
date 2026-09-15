@@ -317,6 +317,15 @@ class SyncService : Service() {
         // Zo hoeft er niets van CHCNav verspreid te worden en werkt het op elk model.
         if (gedaan.isNotEmpty()) werkbladBij(tree, res.guidance, res.files)
 
+        // ── een Nuwa-werf moet ook in Nuwa's projectenlijst ──
+        //
+        // Nuwa toont geen projectmap die niet in zijn eigen databank staat (Projects/project, tabel
+        // TbProject). De server stuurt de rij mee als mv3d-project.json; die zetten we erin.
+        for (f in res.files) {
+            if (f.name != "mv3d-project.json" || f.id !in gedaan) continue
+            try { nuwaProject(tree, f.subfolder) } catch (e: Exception) { lastStatus = "Nuwa-project: ${e.message}" }
+        }
+
         // ── en wat er van hier wég moet ──
         //
         // Het portaal kan vragen om een bestand terug te sturen: een aangepast ontwerp, een
@@ -655,6 +664,74 @@ class SyncService : Service() {
         } catch (e: Exception) {
             kopie.delete()
             throw e
+        }
+    }
+
+    /**
+     * De projectrij van een Nuwa-werf in Nuwa's eigen databank zetten.
+     *
+     * `submap` is TersusSurvey/Projects/<werf> (of Projects/<werf> als TersusSurvey zelf aangewezen is);
+     * de databank `project` staat één laag hoger. Nagemeten op Nuwa 2.5 (BlueStacks, 15/9/2026): met
+     * deze rij verschijnt de werf in de lijst en opent ze, met stelsel en uitzetpunten.
+     *
+     * Een kopie bewerken en terugzetten, want SQLite kan niet door een DocumentFile heen. Nuwa bewaart
+     * die databank in WAL-modus: staat er nog een niet-lege -wal naast, dan hoort die bij de kopie, anders
+     * gaat wat Nuwa net schreef verloren. Terug gaat alles in het hoofdbestand, en de -wal en -shm weg.
+     */
+    private fun nuwaProject(tree: DocumentFile, submap: String?) {
+        val delen = submap?.replace('\\', '/')?.split('/')?.filter { it.isNotBlank() } ?: return
+        if (delen.size < 2 || !delen[delen.size - 2].equals("Projects", ignoreCase = true)) return
+        var projects: DocumentFile = tree
+        for (deel in delen.dropLast(1)) projects = projects.findFile(deel)?.takeIf { it.isDirectory } ?: return
+        val werfMap = projects.findFile(delen.last())?.takeIf { it.isDirectory } ?: return
+        val rijDoc = werfMap.findFile("mv3d-project.json") ?: return
+        val rij = JSONObject(contentResolver.openInputStream(rijDoc.uri)?.use { it.readBytes().decodeToString() }
+            ?: throw RuntimeException("mv3d-project.json kon niet gelezen worden"))
+        val db = projects.findFile("project")?.takeIf { it.isFile }
+            ?: throw RuntimeException("Nuwa heeft hier nog geen projectenlijst — start Nuwa één keer")
+
+        val werk = java.io.File(cacheDir, "nuwa-" + System.currentTimeMillis()).apply { mkdirs() }
+        try {
+            val kopie = java.io.File(werk, "project")
+            contentResolver.openInputStream(db.uri)?.use { inn -> kopie.outputStream().use { inn.copyTo(it) } }
+                ?: throw RuntimeException("de projectenlijst kon niet gelezen worden")
+            val wal = projects.findFile("project-wal")?.takeIf { it.isFile && it.length() > 0 }
+            if (wal != null) contentResolver.openInputStream(wal.uri)?.use { inn -> java.io.File(werk, "project-wal").outputStream().use { inn.copyTo(it) } }
+
+            val sql = android.database.sqlite.SQLiteDatabase.openDatabase(
+                kopie.path, null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READWRITE or android.database.sqlite.SQLiteDatabase.NO_LOCALIZED_COLLATORS,
+            )
+            try {
+                val naam = rij.getString("ProjectName")
+                sql.beginTransaction()
+                try {
+                    sql.delete("TbProject", "ProjectName = ?", arrayOf(naam))
+                    val v = android.content.ContentValues()
+                    v.put("ProjectName", naam)
+                    v.put("Creator", rij.optString("Creator", "MV3D"))
+                    v.put("DateTime", rij.optLong("DateTime", System.currentTimeMillis()))
+                    v.put("CoordSystem", rij.getString("CoordSystem"))
+                    v.put("LayerTemplate", rij.optString("LayerTemplate", ""))
+                    v.put("RefBaseName", rij.optString("RefBaseName", "Base_0"))
+                    v.put("RefBaseLat", rij.optDouble("RefBaseLat", 0.0))
+                    v.put("RefBaseLon", rij.optDouble("RefBaseLon", 0.0))
+                    v.put("RefBaseAlt", rij.optDouble("RefBaseAlt", 0.0))
+                    v.put("UpdateTime", rij.optLong("UpdateTime", System.currentTimeMillis()))
+                    v.put("RefBaseAntHGT", rij.optDouble("RefBaseAntHGT", 0.0))
+                    if (sql.insert("TbProject", null, v) < 0) throw RuntimeException("de rij kwam er niet in")
+                    sql.setTransactionSuccessful()
+                } finally { sql.endTransaction() }
+                // Alles in het hoofdbestand: de -wal gaat niet mee terug.
+                sql.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { it.moveToFirst() }
+            } finally { sql.close() }
+
+            contentResolver.openOutputStream(db.uri, "wt")?.use { uit -> kopie.inputStream().use { it.copyTo(uit) } }
+                ?: throw RuntimeException("de projectenlijst kon niet teruggeschreven worden")
+            projects.findFile("project-wal")?.delete()
+            projects.findFile("project-shm")?.delete()
+        } finally {
+            werk.deleteRecursively()
         }
     }
 

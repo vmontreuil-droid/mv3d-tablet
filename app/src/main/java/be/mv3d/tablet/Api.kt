@@ -177,6 +177,8 @@ class Api(private val server: String, private val code: String) {
                 // naam alleen "chc" zoeken zou te ruim zijn — dat staat ook in hun GPS-hulpjes —
                 // dus op het pakket, met de naam als tweede weg voor een versie die anders heet.
                 if (namen.any { it.contains("com.huace.mcnav") || it.contains("mcnav") }) lijst.add("CHCNAV")
+                // Tersus: hun landmeetprogramma Nuwa draait onder com.tbd.tbd (nagemeten, versie 2.5).
+                if (namen.any { it.startsWith("com.tbd.tbd ") || it.contains(" nuwa") }) lijst.add("TERSUS")
             } catch (_: Exception) { return emptyList() }
             return lijst.toList().also { gevonden = it }
         }
@@ -209,7 +211,8 @@ class Api(private val server: String, private val code: String) {
         // waarom niet.
         // "hernoemen-chc": deze versie past bij een CHCnav-werf ook het .hcprj, het .json en de
         // databank aan. Een oudere hernoemt alleen de map, en dan verdwijnt de werf uit McNav.
-        body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen").put("hernoemen-chc"))
+        // "nuwa-project": deze versie zet een Nuwa-werf ook in Nuwa's projectenlijst.
+        body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen").put("hernoemen-chc").put("nuwa-project"))
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->

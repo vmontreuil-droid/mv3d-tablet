@@ -16,6 +16,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -95,6 +96,11 @@ private val Mv3dColors = darkColorScheme(
  * slaan we die stap over en is de code werkelijk het enige.
  */
 class MainActivity : ComponentActivity() {
+
+    // De gekozen taal geldt voor alles wat dit scherm tekent (stringResource leest deze context).
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(Taal.omhul(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -205,6 +211,10 @@ class MainActivity : ComponentActivity() {
                         // tablet die maanden op een oude versie blijft staan, is precies wat we
                         // hierboven net dichtgezet hebben.
                         onOntkoppel = { scope.launch { prefs.wis(); stopSync(); startSync() } },
+                        taal = Taal.huidig(ctx),
+                        // Opnieuw opbouwen in de nieuwe taal; de dienst ook, want die schrijft de
+                        // meldingen en de foutregel.
+                        onTaal = { nieuw -> Taal.zet(ctx, nieuw); stopSync(); startSync(); recreate() },
                     )
                     // ── de dienst draait ook zonder koppeling ──
                     //
@@ -301,6 +311,8 @@ private fun Scherm (
     onBatterij: () -> Unit,
     onBijwerken: () -> Unit,
     onOntkoppel: () -> Unit,
+    taal: String,
+    onTaal: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
     var getikt by remember { mutableStateOf("") }
@@ -548,6 +560,31 @@ private fun Scherm (
                     ),
                     fontSize = 14.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error,
                 )
+            }
+        }
+
+        // ── de taal, helemaal onderaan ──
+        //
+        // Dezelfde vijf knopjes als onderaan de Convertor en MV3D Veld. De afkorting en niet de naam
+        // van de taal: die is in elke taal hetzelfde, en wie de huidige taal niet leest, vindt zo nog
+        // altijd de zijne.
+        Spacer(Modifier.height(28.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            for (t in Taal.TALEN) {
+                val aan = t == taal
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (aan) Kaart else Color.Transparent)
+                        .clickable(enabled = !aan) { onTaal(t) }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        t.uppercase(), fontSize = 13.sp, letterSpacing = 1.sp,
+                        fontWeight = if (aan) FontWeight.Bold else FontWeight.Normal,
+                        color = if (aan) Accent else TekstZacht,
+                    )
+                }
             }
         }
     }

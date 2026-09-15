@@ -42,6 +42,11 @@ import org.json.JSONObject
 private const val WERKBLAD = "workspace.mgdb"
 
 class SyncService : Service() {
+    // De meldingen en de foutregel in de taal die in de app gekozen is (zie Taal.kt).
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(Taal.omhul(newBase))
+    }
+
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val prefs by lazy { Prefs(this) }
 

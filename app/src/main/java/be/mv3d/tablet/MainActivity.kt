@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
                         // hij moest doen.
                         val alGegeven = Veldmap.alGegeven(ctx)
                         if (alGegeven != null) { prefs.setTree(alGegeven.toString()); startSync(); Batterij.vraag(ctx) }
-                        else kiesMap.launch(Veldmap.kiezer())
+                        else kiesMap.launch(Veldmap.kiezer(Api.besturing(ctx)))
                     }
 
                     // ── de eigen code, zolang er nog geen koppeling is ──
@@ -197,7 +197,7 @@ class MainActivity : ComponentActivity() {
                                 klaar(uitslag)
                             }
                         },
-                        onKiesMap = { kiesMap.launch(Veldmap.kiezer()) },
+                        onKiesMap = { kiesMap.launch(Veldmap.kiezer(Api.besturing(ctx))) },
                         onBatterij = { Batterij.vraag(ctx) },
                         onBijwerken = { Updater.installeer(ctx, SyncService.updateKlaar) },
                         onOntkoppel = { scope.launch { prefs.wis(); stopSync() } },

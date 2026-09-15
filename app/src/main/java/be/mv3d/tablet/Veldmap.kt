@@ -30,6 +30,24 @@ import androidx.documentfile.provider.DocumentFile
 object Veldmap {
 
     /**
+     * Waar de kiezer opengaat, per programma.
+     *
+     * Hier stond niets van: de kiezer opende altijd op het eerste pad uit PADEN, en dat is dat van
+     * Unicontrol. Op een CHC-besturing kwam de machinist dus uit bij een map van een ander merk en
+     * moest hij zelf gaan zoeken — terwijl wij wisten waar zijn werven staan.
+     *
+     * De besturing komt van de server (guidance_system) of uit wat de app zelf gevonden heeft.
+     * Weten we het niet, dan blijft het bij de oude volgorde.
+     */
+    private val PER_MERK = mapOf(
+        "CHCNAV" to "CHCNAV/TX73/Projects",
+        "UNICONTROL" to "Unicontrol/CloudProjects",
+        "TRIMBLE_SITEWORKS" to "Trimble SCS900 Data",
+        "TRIMBLE_SCS900" to "Trimble SCS900 Data",
+        "TRIMBLE_ACCESS" to "Trimble Data/Projects",
+    )
+
+    /**
      * Waar de programma's die we kennen hun werven neerzetten.
      *
      * In volgorde van hoe vaak we ze zagen. De eerste is waar de kiezer op opent; de rest staat
@@ -88,7 +106,7 @@ object Veldmap {
      * Zit die map er niet — een ander programma, een geheugenkaart — dan opent de kiezer gewoon
      * waar hij anders ook zou openen. Beter een kiezer die net naast staat dan een app die weigert.
      */
-    fun kiezer(): Intent {
+    fun kiezer(besturing: String? = null): Intent {
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
             .addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -96,7 +114,10 @@ object Veldmap {
                     Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
             )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            beginBij(PADEN.first())?.let { i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+            // Het pad van dit merk, en anders het eerste dat we kennen. Zit die map er niet, dan
+            // opent de kiezer een niveau hoger — één druk extra, geen fout.
+            val begin = PER_MERK[besturing?.uppercase()] ?: PADEN.first()
+            beginBij(begin)?.let { i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
         }
         return i
     }

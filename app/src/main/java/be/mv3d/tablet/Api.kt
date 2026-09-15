@@ -132,6 +132,19 @@ class Api(private val server: String, private val code: String) {
         } catch (_: Exception) { Build.MODEL }
 
         /**
+         * Welk programma er op dit toestel staat, als we er één herkennen.
+         *
+         * Hetzelfde antwoord als wat er bij het aanmelden naar de server gaat, maar dan voor eigen
+         * gebruik: de mappenkiezer opent hiermee op de map van dát merk. Stond dat er niet, dan
+         * opende hij altijd bij Unicontrol — ook op een CHC-besturing, waar de machinist dan zelf
+         * mocht gaan zoeken terwijl wij wisten waar zijn werven staan.
+         *
+         * Null als we niets herkennen. Dan blijft de kiezer waar hij was; raden zou hier alleen
+         * maar verder van huis brengen.
+         */
+        fun besturing(ctx: Context): String? = programmas(ctx).firstOrNull()
+
+        /**
          * Welke van de programma's die we kennen, op dit toestel staan — de belangrijkste eerst.
          *
          * We zoeken niet op een vaste pakketnaam, want die kennen we niet zeker: Unicontrol staat niet

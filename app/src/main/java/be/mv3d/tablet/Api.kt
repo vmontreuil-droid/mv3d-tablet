@@ -219,6 +219,30 @@ class Api(private val server: String, private val code: String) {
      * De mappenlijst gaat mee zodat het portaal kan tonen wat er op de tablet staat. Lukt het
      * opstellen daarvan niet, dan gaat de ronde toch door: bestanden ophalen is de hoofdzaak.
      */
+    /**
+     * Een werf van deze machine naar een andere sturen.
+     *
+     * Gevraagd: "machines delen onderling hun werven: kiezen hun werf op tablet, duwen de koppelcode
+     * in en hopla." Wij sturen alleen de vraag; de server haalt de bestanden hier op langs de gewone
+     * wachtrij en zet ze daarna op de andere machine. Dat duurt een ronde of twee, en dat hoort het
+     * scherm te zeggen — niet doen alsof het al gebeurd is.
+     */
+    fun doorsturen(werf: String, doelcode: String): Pair<Boolean, String> {
+        val body = JSONObject()
+            .put("connection_code", code)
+            .put("werf", werf)
+            .put("doelcode", doelcode)
+        val req = Request.Builder().url("$server/api/machines/doorsturen")
+            .post(body.toString().toRequestBody(json)).build()
+        return try {
+            http.newCall(req).execute().use { resp ->
+                val o = try { JSONObject(resp.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
+                if (resp.isSuccessful && o.optBoolean("ok")) true to o.optString("naar", "")
+                else false to o.optString("melding", "fout ${resp.code}")
+            }
+        } catch (e: Exception) { false to (e.message ?: "geen verbinding") }
+    }
+
     fun sync(listing: JSONObject?, plek: Toestelplek.Punt? = null): SyncResult {
         val body = JSONObject().put("connection_code", code)
         if (listing != null) body.put("listing", listing)

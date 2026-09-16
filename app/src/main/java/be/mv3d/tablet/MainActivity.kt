@@ -510,6 +510,36 @@ private fun Scherm (
             }
         }
 
+        // ── een werf naar een andere machine sturen ──
+        //
+        // Gevraagd (16/9/2026): "iets dat echt zot zou zijn: machines delen onderling hun werven —
+        // kiezen hun werf op tablet, duwen de koppelcode in en hopla."
+        //
+        // Precies dat: kies een werf van dit toestel, tik de acht cijfers van het scherm van de andere
+        // machine in, klaar. De server haalt de bestanden hier op en zet ze daar neer, elk in het
+        // formaat van die machine. Het scherm zegt dat het even duurt — het wacht op een ronde van
+        // beide machines — in plaats van te doen alsof het al gebeurd is.
+        if (gekoppeld && SyncService.werven.isNotEmpty()) {
+            var doorOpen by remember { mutableStateOf(false) }
+            Spacer(Modifier.height(22.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kaart).padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(stringResource(R.string.werf_doorsturen), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Tekst)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.werf_doorsturen_uit),
+                    fontSize = 13.5.sp, color = TekstZacht, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = { doorOpen = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text(stringResource(R.string.werf_kiezen), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (doorOpen) DoorstuurVenster(onSluit = { doorOpen = false })
+        }
+
         if (wachtOpMap) {
             Spacer(Modifier.height(18.dp))
             Button(onClick = onKiesMap, modifier = Modifier.fillMaxWidth().height(56.dp)) {
@@ -659,5 +689,88 @@ private fun WachtBolletje () {
         Modifier.size(14.dp)
             .graphicsLayer { alpha = helder; scaleX = maat; scaleY = maat }
             .clip(CircleShape).background(Accent),
+    )
+}
+
+
+/**
+ * Het venster "werf doorsturen": eerst de werf, dan de acht cijfers van de andere machine.
+ *
+ * Twee stappen en niet één scherm vol velden: in een cabine, met handschoenen, is een lijst om uit te
+ * kiezen makkelijker dan een naam intikken. De uitslag blijft staan tot je hem wegtikt — wie op
+ * versturen duwt en meteen wegkijkt, hoort daarna nog te kunnen zien of het gelukt is.
+ */
+@Composable
+private fun DoorstuurVenster (onSluit: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    var werf by remember { mutableStateOf<String?>(null) }
+    var getikt by remember { mutableStateOf("") }
+    var bezig by remember { mutableStateOf(false) }
+    var uitslag by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    val schaal = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = { if (!bezig) onSluit() },
+        title = { Text(stringResource(R.string.werf_doorsturen), fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                val u = uitslag
+                if (u != null) {
+                    Text(
+                        if (u.first) stringResource(R.string.doorsturen_onderweg, u.second)
+                        else stringResource(R.string.doorsturen_mislukt, u.second),
+                        fontSize = 14.sp,
+                    )
+                } else if (werf == null) {
+                    Text(stringResource(R.string.kies_de_werf), fontSize = 13.5.sp, color = TekstZacht)
+                    Spacer(Modifier.height(8.dp))
+                    Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
+                        for (w in SyncService.werven) {
+                            TextButton(onClick = { werf = w }, modifier = Modifier.fillMaxWidth()) {
+                                Text(w, fontSize = 14.5.sp, color = Tekst, textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                } else {
+                    Text(werf ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Tekst)
+                    Spacer(Modifier.height(4.dp))
+                    Text(stringResource(R.string.tik_code_andere_machine), fontSize = 13.5.sp, color = TekstZacht)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = getikt,
+                        onValueChange = { nieuw -> getikt = nieuw.filter { it.isDigit() }.take(8) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            val u = uitslag
+            when {
+                u != null -> TextButton(onClick = onSluit) { Text(stringResource(R.string.sluiten)) }
+                werf == null -> TextButton(onClick = onSluit) { Text(stringResource(R.string.annuleren)) }
+                else -> TextButton(
+                    enabled = getikt.length == 8 && !bezig,
+                    onClick = {
+                        bezig = true
+                        val w = werf ?: return@TextButton
+                        schaal.launch {
+                            val r = withContext(Dispatchers.IO) {
+                                try { Api(prefs.server(), prefs.code()).doorsturen(w, getikt) }
+                                catch (e: Exception) { false to (e.message ?: "") }
+                            }
+                            bezig = false
+                            uitslag = r
+                        }
+                    },
+                ) { Text(stringResource(if (bezig) R.string.bezig else R.string.versturen)) }
+            }
+        },
+        dismissButton = {
+            if (uitslag == null && werf != null) TextButton(onClick = { werf = null; getikt = "" }) { Text(stringResource(R.string.terug)) }
+        },
     )
 }

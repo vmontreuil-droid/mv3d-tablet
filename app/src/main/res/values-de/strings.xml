@@ -51,4 +51,15 @@
     <string name="fout_server">Der Server antwortet, aber nicht richtig (%1$s). Versuchen Sie es später erneut.</string>
     <string name="fout_onbekend">Etwas ist schiefgelaufen: %1$s</string>
     <string name="fout_code_geen_bereik">Keine Verbindung zu mv3d.be. Der Code konnte nicht geprüft werden — versuchen Sie es erneut, sobald Empfang da ist.</string>
+    <string name="werf_doorsturen">Baustelle weiterleiten</string>
+    <string name="werf_doorsturen_uit">Senden Sie eine Baustelle von dieser Maschine an eine andere. Sie brauchen nur die acht Ziffern von deren Bildschirm.</string>
+    <string name="werf_kiezen">Baustelle wählen</string>
+    <string name="kies_de_werf">Welche Baustelle geht mit?</string>
+    <string name="tik_code_andere_machine">Tippen Sie die acht Ziffern ein, die auf dem Bildschirm der anderen Maschine stehen.</string>
+    <string name="doorsturen_onderweg">Unterwegs zu %1$s. Die beiden Maschinen erledigen das; meist innerhalb einer Minute.</string>
+    <string name="doorsturen_mislukt">Nicht geklappt: %1$s</string>
+    <string name="versturen">Senden</string>
+    <string name="bezig">Läuft…</string>
+    <string name="terug">Zurück</string>
+    <string name="sluiten">Schließen</string>
 </resources>

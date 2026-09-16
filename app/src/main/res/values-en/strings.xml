@@ -51,4 +51,15 @@
     <string name="fout_server">The server answers, but not correctly (%1$s). Try again later.</string>
     <string name="fout_onbekend">Something went wrong: %1$s</string>
     <string name="fout_code_geen_bereik">No connection to mv3d.be. The code could not be checked — try again once there is signal.</string>
+    <string name="werf_doorsturen">Forward a site</string>
+    <string name="werf_doorsturen_uit">Send a site from this machine to another one. All you need are the eight digits from its screen.</string>
+    <string name="werf_kiezen">Choose a site</string>
+    <string name="kies_de_werf">Which site goes?</string>
+    <string name="tik_code_andere_machine">Type the eight digits shown on the other machine’s screen.</string>
+    <string name="doorsturen_onderweg">On its way to %1$s. The two machines handle it; usually there within the minute.</string>
+    <string name="doorsturen_mislukt">Did not work: %1$s</string>
+    <string name="versturen">Send</string>
+    <string name="bezig">Working…</string>
+    <string name="terug">Back</string>
+    <string name="sluiten">Close</string>
 </resources>

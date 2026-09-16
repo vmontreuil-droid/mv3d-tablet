@@ -51,4 +51,15 @@
     <string name="fout_server">Le serveur répond, mais pas correctement (%1$s). Réessayez plus tard.</string>
     <string name="fout_onbekend">Quelque chose s\'est mal passé : %1$s</string>
     <string name="fout_code_geen_bereik">Pas de connexion à mv3d.be. Le code n\'a pas pu être vérifié — réessayez dès qu\'il y a du réseau.</string>
+    <string name="werf_doorsturen">Transférer un chantier</string>
+    <string name="werf_doorsturen_uit">Envoyez un chantier de cette machine vers une autre. Il vous faut seulement les huit chiffres de son écran.</string>
+    <string name="werf_kiezen">Choisir un chantier</string>
+    <string name="kies_de_werf">Quel chantier part ?</string>
+    <string name="tik_code_andere_machine">Tapez les huit chiffres affichés sur l’écran de l’autre machine.</string>
+    <string name="doorsturen_onderweg">En route vers %1$s. Les deux machines s’en occupent ; en général moins d’une minute.</string>
+    <string name="doorsturen_mislukt">Échec : %1$s</string>
+    <string name="versturen">Envoyer</string>
+    <string name="bezig">En cours…</string>
+    <string name="terug">Retour</string>
+    <string name="sluiten">Fermer</string>
 </resources>

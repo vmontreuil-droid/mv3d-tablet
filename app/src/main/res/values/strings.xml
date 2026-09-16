@@ -75,4 +75,15 @@
     <string name="fout_server">De server antwoordt, maar niet goed (%1$s). Probeer het straks opnieuw.</string>
     <string name="fout_onbekend">Er ging iets mis: %1$s</string>
     <string name="fout_code_geen_bereik">Geen verbinding met mv3d.be. De code kon niet nagekeken worden — probeer het opnieuw zodra er bereik is.</string>
+    <string name="werf_doorsturen">Werf doorsturen</string>
+    <string name="werf_doorsturen_uit">Stuur een werf van deze machine naar een andere. Je hebt alleen de acht cijfers van haar scherm nodig.</string>
+    <string name="werf_kiezen">Werf kiezen</string>
+    <string name="kies_de_werf">Welke werf gaat mee?</string>
+    <string name="tik_code_andere_machine">Tik de acht cijfers in die op het scherm van de andere machine staan.</string>
+    <string name="doorsturen_onderweg">Onderweg naar %1$s. De twee machines werken het af; meestal staat ze er binnen de minuut.</string>
+    <string name="doorsturen_mislukt">Niet gelukt: %1$s</string>
+    <string name="versturen">Versturen</string>
+    <string name="bezig">Bezig…</string>
+    <string name="terug">Terug</string>
+    <string name="sluiten">Sluiten</string>
 </resources>

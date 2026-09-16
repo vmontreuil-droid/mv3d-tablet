@@ -95,6 +95,14 @@ class SyncService : Service() {
          */
         @Volatile var lastFout: String? = null
         /** Welke build er klaarstaat om geïnstalleerd te worden, of 0. Het scherm leest dit. */
+        /**
+         * De werven die op dit toestel staan, zoals ze in de mappenlijst zitten.
+         *
+         * Voor het scherm "werf doorsturen": de machinist kiest er een en tikt de code van de andere
+         * machine in. Hier bijgehouden omdat de lijst er bij elke ronde toch al is; hem in het scherm
+         * opnieuw opbouwen zou de map een tweede keer doorlopen.
+         */
+        @Volatile var werven: List<String> = emptyList()
         @Volatile var updateKlaar: Int = 0
         @Volatile var updateNaam: String = ""
     }
@@ -808,6 +816,17 @@ class SyncService : Service() {
             }
         }
         loop(tree, "", 0)
+        // De werven: de bovenste mappen met iets erin. Meer kennis heeft het scherm niet nodig — de
+        // server kijkt zelf welke bestanden er bij horen.
+        werven = run {
+            val namen = LinkedHashSet<String>()
+            for (i in 0 until files.length()) {
+                val pad = files.getJSONObject(i).optString("path")
+                val eerste = pad.substringBefore('/')
+                if (eerste.isNotEmpty() && eerste != pad) namen.add(eerste)
+            }
+            namen.toList()
+        }
         // De naam van de map én waar ze staat.
         //
         // Alleen de naam is niet genoeg gebleken: op één toestel stonden er twee mappen die

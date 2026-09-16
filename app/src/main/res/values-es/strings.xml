@@ -58,6 +58,7 @@
     <string name="tik_code_andere_machine">Escriba las ocho cifras que aparecen en la pantalla de la otra máquina.</string>
     <string name="doorsturen_onderweg">En camino a %1$s. Las dos máquinas lo gestionan; normalmente en menos de un minuto.</string>
     <string name="doorsturen_mislukt">No ha funcionado: %1$s</string>
+    <string name="doorsturen_niet_alles">%1$d de %2$d archivos van; %3$d se quedan en esta máquina.</string>
     <string name="versturen">Enviar</string>
     <string name="bezig">En curso…</string>
     <string name="terug">Atrás</string>

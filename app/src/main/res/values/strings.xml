@@ -82,6 +82,7 @@
     <string name="tik_code_andere_machine">Tik de acht cijfers in die op het scherm van de andere machine staan.</string>
     <string name="doorsturen_onderweg">Onderweg naar %1$s. De twee machines werken het af; meestal staat ze er binnen de minuut.</string>
     <string name="doorsturen_mislukt">Niet gelukt: %1$s</string>
+    <string name="doorsturen_niet_alles">%1$d van de %2$d bestanden gaan mee; %3$d blijven op deze machine staan.</string>
     <string name="versturen">Versturen</string>
     <string name="bezig">Bezig…</string>
     <string name="terug">Terug</string>

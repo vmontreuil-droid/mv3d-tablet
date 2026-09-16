@@ -707,7 +707,7 @@ private fun DoorstuurVenster (onSluit: () -> Unit) {
     var werf by remember { mutableStateOf<String?>(null) }
     var getikt by remember { mutableStateOf("") }
     var bezig by remember { mutableStateOf(false) }
-    var uitslag by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    var uitslag by remember { mutableStateOf<Doorstuur?>(null) }
     val schaal = rememberCoroutineScope()
 
     AlertDialog(
@@ -718,10 +718,24 @@ private fun DoorstuurVenster (onSluit: () -> Unit) {
                 val u = uitslag
                 if (u != null) {
                     Text(
-                        if (u.first) stringResource(R.string.doorsturen_onderweg, u.second)
-                        else stringResource(R.string.doorsturen_mislukt, u.second),
+                        if (u.ok) stringResource(R.string.doorsturen_onderweg, u.naar)
+                        else stringResource(R.string.doorsturen_mislukt, u.naar),
                         fontSize = 14.sp,
                     )
+                    // ── wat er niet meegaat ──
+                    //
+                    // De server neemt hoogstens een vast aantal bestanden mee. Zwijgt het scherm
+                    // daarover, dan staat de werf straks aan de overkant en is ze niet compleet —
+                    // en dat merk je pas in de kraan, als er een stuk ontwerp mist. Wie hier duwt
+                    // staat in die kraan en heeft geen tweede scherm om het na te kijken.
+                    if (u.ok && u.afgevallen > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.doorsturen_niet_alles, u.bestanden, u.gevonden, u.afgevallen),
+                            fontSize = 13.5.sp,
+                            color = TekstZacht,
+                        )
+                    }
                 } else if (werf == null) {
                     Text(stringResource(R.string.kies_de_werf), fontSize = 13.5.sp, color = TekstZacht)
                     Spacer(Modifier.height(8.dp))
@@ -760,7 +774,7 @@ private fun DoorstuurVenster (onSluit: () -> Unit) {
                         schaal.launch {
                             val r = withContext(Dispatchers.IO) {
                                 try { Api(prefs.server(), prefs.code()).doorsturen(w, getikt) }
-                                catch (e: Exception) { false to (e.message ?: "") }
+                                catch (e: Exception) { Doorstuur(ok = false, naar = e.message ?: "") }
                             }
                             bezig = false
                             uitslag = r

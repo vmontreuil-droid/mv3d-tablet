@@ -50,6 +50,25 @@ data class RenameDir(val id: String, val path: String, val naar: String)
 data class PullResult(val id: String, val ok: Boolean, val bytes: Long, val error: String?)
 
 /** Wat de server terugstuurt bij een ronde. */
+/**
+ * Wat het doorsturen opleverde.
+ *
+ * `naar` is de naam van de andere machine, of bij een mislukking de reden. De drie getallen zijn er
+ * omdat de server hoogstens een vast aantal bestanden meeneemt: gaat een werf niet volledig mee, dan
+ * hoort dat op het scherm te staan. Aan de overkant staat de werf er anders wél, alleen niet
+ * compleet — en dat merkt de machinist pas als er een stuk ontwerp mist.
+ */
+data class Doorstuur(
+    val ok: Boolean,
+    val naar: String,
+    /** Hoeveel er meegaan. */
+    val bestanden: Int = 0,
+    /** Hoeveel er nuttig waren. */
+    val gevonden: Int = 0,
+    /** Hoeveel er buiten de maat vielen en hier blijven staan. */
+    val afgevallen: Int = 0,
+)
+
 data class SyncResult(
     val files: List<RemoteFile>,
     val guidance: String?,
@@ -227,7 +246,7 @@ class Api(private val server: String, private val code: String) {
      * wachtrij en zet ze daarna op de andere machine. Dat duurt een ronde of twee, en dat hoort het
      * scherm te zeggen — niet doen alsof het al gebeurd is.
      */
-    fun doorsturen(werf: String, doelcode: String): Pair<Boolean, String> {
+    fun doorsturen(werf: String, doelcode: String): Doorstuur {
         val body = JSONObject()
             .put("connection_code", code)
             .put("werf", werf)
@@ -237,10 +256,18 @@ class Api(private val server: String, private val code: String) {
         return try {
             http.newCall(req).execute().use { resp ->
                 val o = try { JSONObject(resp.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
-                if (resp.isSuccessful && o.optBoolean("ok")) true to o.optString("naar", "")
-                else false to o.optString("melding", "fout ${resp.code}")
+                if (resp.isSuccessful && o.optBoolean("ok")) Doorstuur(
+                    ok = true,
+                    naar = o.optString("naar", ""),
+                    bestanden = o.optInt("bestanden", 0),
+                    // Een oudere server kent deze twee niet. Dan blijven ze nul en zwijgt het scherm
+                    // erover — beter dan een zin met een getal dat niemand gemeten heeft.
+                    gevonden = o.optInt("gevonden", 0),
+                    afgevallen = o.optInt("afgevallen", 0),
+                )
+                else Doorstuur(ok = false, naar = o.optString("melding", "fout ${resp.code}"))
             }
-        } catch (e: Exception) { false to (e.message ?: "geen verbinding") }
+        } catch (e: Exception) { Doorstuur(ok = false, naar = e.message ?: "geen verbinding") }
     }
 
     fun sync(listing: JSONObject?, plek: Toestelplek.Punt? = null): SyncResult {

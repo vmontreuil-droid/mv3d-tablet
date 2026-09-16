@@ -103,6 +103,10 @@ class SyncService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(1, notification(getString(R.string.mv3d_actief)))
+        // Zijn wij eigenaar van dit toestel, dan geven we onszelf de toestemming voor de plek. In een
+        // cabine staat niemand klaar om een venster weg te tikken; zonder eigenaarschap gebeurt er
+        // niets en stuurt de app gewoon geen plek mee.
+        Beheerder.plekToestaan(this)
         if (!running) { running = true; loop() }
         // START_STICKY: valt de dienst om — te weinig geheugen, een update van Android — dan start
         // het toestel haar zelf opnieuw. Zonder dit stopt de sync stil en merkt niemand het.
@@ -270,7 +274,7 @@ class SyncService : Service() {
             lastFout = getString(R.string.fout_map_geen_toegang)
         }
 
-        val res = api.sync(if (leesbaar) mappenlijst(tree) else null)
+        val res = api.sync(if (leesbaar) mappenlijst(tree) else null, Toestelplek.huidige(this))
 
         // Er is contact geweest. Dat tekenen we hier, en niet onderaan.
         //

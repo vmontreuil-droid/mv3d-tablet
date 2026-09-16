@@ -219,7 +219,7 @@ class Api(private val server: String, private val code: String) {
      * De mappenlijst gaat mee zodat het portaal kan tonen wat er op de tablet staat. Lukt het
      * opstellen daarvan niet, dan gaat de ronde toch door: bestanden ophalen is de hoofdzaak.
      */
-    fun sync(listing: JSONObject?): SyncResult {
+    fun sync(listing: JSONObject?, plek: Toestelplek.Punt? = null): SyncResult {
         val body = JSONObject().put("connection_code", code)
         if (listing != null) body.put("listing", listing)
         // Welke app en welke versie. Bij "hij doet raar" was dat altijd de eerste vraag, en het
@@ -236,6 +236,16 @@ class Api(private val server: String, private val code: String) {
         // databank aan. Een oudere hernoemt alleen de map, en dan verdwijnt de werf uit McNav.
         // "nuwa-project": deze versie zet een Nuwa-werf ook in Nuwa's projectenlijst.
         body.put("kan", org.json.JSONArray().put("wissen").put("hernoemen").put("hernoemen-chc").put("nuwa-project"))
+        // ── waar het toestel staat ──
+        //
+        // Alleen als Android het ons geeft (zie Plek.kt). Het tijdstip is dat van de meting zelf: een
+        // plek van twee uur geleden hoort niet als "nu" op de kaart te komen.
+        if (plek != null) {
+            body.put("latitude", plek.lat)
+            body.put("longitude", plek.lon)
+            body.put("accuracy", plek.nauwkeurig.toDouble())
+            body.put("location_time", plek.tijd)
+        }
         val req = Request.Builder().url("$server/api/machines/sync")
             .post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().use { resp ->

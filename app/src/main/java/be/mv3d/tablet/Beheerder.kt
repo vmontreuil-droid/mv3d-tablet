@@ -54,5 +54,26 @@ class Beheerder : DeviceAdminReceiver() {
             val dpm = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             dpm.isDeviceOwnerApp(ctx.packageName)
         } catch (_: Exception) { false }
+
+        /**
+         * De toestemming voor de plek zelf geven, als wij eigenaar van dit toestel zijn.
+         *
+         * Gevraagd: de plek van tablets en machines op een kaart, tegen diefstal en voor service. Op een
+         * machinetablet staat niemand klaar om een venster weg te tikken — die hangt in een cabine. Als
+         * device owner mogen we de toestemming zelf zetten; op een gewoon toestel doen we niets en stuurt
+         * de app gewoon geen plek mee.
+         *
+         * Werkt het niet (Android laat het op sommige versies niet toe voor plaatsbepaling), dan is dat
+         * geen fout: dan blijft het toestel zonder plek, en dat is het geval van vandaag.
+         */
+        fun plekToestaan(ctx: Context) {
+            if (!isEigenaar(ctx)) return
+            try {
+                val dpm = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+                for (recht in listOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    dpm.setPermissionGrantState(wie(ctx), ctx.packageName, recht, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+                }
+            } catch (_: Exception) { /* dan zonder plek */ }
+        }
     }
 }
